@@ -7,7 +7,14 @@ import { compile } from '../core/compiler.js';
 import { emit } from '../core/emitter.js';
 import { NoSourcesError, IngredError } from '../utils/errors.js';
 import { log } from '../utils/logger.js';
-import type { IngredientFile, ExternalMapping, TargetId } from '../types.js';
+import {
+  getProjectId,
+  loadPrivacyConfig,
+  savePrivacyConfig,
+  splitByPrivacy,
+  getPrivateCompiledDir,
+} from '../core/privacy.js';
+import type { IngredientFile, ExternalMapping, TargetId, ProjectPrivacyConfig } from '../types.js';
 import prompts from 'prompts';
 
 const VALID_TARGETS = new Set<TargetId>(['claude', 'cursor', 'copilot', 'agents', 'gemini']);
@@ -26,6 +33,7 @@ export async function mixCommand(opts: {
   targets?: string;
   interactive?: boolean;
   verbose?: boolean;
+  allPrivate?: boolean;
 }): Promise<void> {
   const config = await loadConfig();
 
@@ -121,8 +129,62 @@ export async function mixCommand(opts: {
     log.item('Selected', `${selectedMatches.length} of ${matches.length} ingredients`);
   }
 
+  // Privacy split
+  const projectId = getProjectId(workspaceRoot);
+  let privacyConfig = await loadPrivacyConfig(projectId);
+
+  if (opts.allPrivate) {
+    privacyConfig = {
+      version: 1,
+      privateIngredients: selectedMatches.map(
+        (m) => `${m.ingredient.sourceName}/${m.ingredient.relativePath}`,
+      ),
+    };
+    await savePrivacyConfig(projectId, privacyConfig);
+  }
+
+  if (opts.interactive) {
+    const privacySet = new Set(privacyConfig.privateIngredients);
+    const privacyResponse = await prompts({
+      type: 'multiselect',
+      name: 'private',
+      message: 'Which ingredients should be private?',
+      choices: selectedMatches.map((m, i) => {
+        const key = `${m.ingredient.sourceName}/${m.ingredient.relativePath}`;
+        return {
+          title: key,
+          value: i,
+          selected: privacySet.has(key),
+        };
+      }),
+      instructions: false,
+    });
+
+    if (privacyResponse.private) {
+      const privateIndices = new Set<number>(privacyResponse.private);
+      privacyConfig = {
+        version: 1,
+        privateIngredients: selectedMatches
+          .filter((_, i) => privateIndices.has(i))
+          .map((m) => `${m.ingredient.sourceName}/${m.ingredient.relativePath}`),
+      };
+      await savePrivacyConfig(projectId, privacyConfig);
+    }
+  }
+
+  const { publicMatches, privateMatches } = splitByPrivacy(selectedMatches, privacyConfig);
+
+  if (opts.verbose && privateMatches.length > 0) {
+    log.info('');
+    log.item('Private', `${privateMatches.length} ingredients`);
+    for (const m of privateMatches) {
+      log.hint(`    ${m.ingredient.sourceName}/${m.ingredient.relativePath}`);
+    }
+  }
+
   // Compile
-  const compiled = compile(selectedMatches);
+  const compiled = compile(publicMatches);
+  const privateCompiled = privateMatches.length > 0 ? compile(privateMatches) : null;
 
   // Dry run — show what would be written
   if (opts.dryRun) {
@@ -132,11 +194,27 @@ export async function mixCommand(opts: {
     for (const targetId of targetIds) {
       log.info(`  Would write: ${targetId}`);
     }
+    if (privateMatches.length > 0) {
+      const compiledDir = getPrivateCompiledDir(projectId);
+      log.info('');
+      log.info(`  Private content would be written to:`);
+      log.info(`    ${compiledDir}`);
+    }
     return;
   }
 
   // Emit
-  const results = await emit(compiled, stack, targetIds, opts.force ?? false);
+  const privateEmitOpts = (() => {
+    const compiledDir = getPrivateCompiledDir(projectId);
+    const tildeCompiledDir = '~/.ingred/compiled/' + projectId;
+    return {
+      privateCompiled,
+      compiledDir,
+      tildeCompiledDir,
+    };
+  })();
+
+  const results = await emit(compiled, stack, targetIds, opts.force ?? false, privateEmitOpts);
 
   log.info('');
   log.header('ingred mix complete');
@@ -161,6 +239,11 @@ export async function mixCommand(opts: {
       const label = r.location === 'global' ? `${r.target} (global)` : r.target;
       log.warn(`${label} (${r.reason} — use --force to overwrite)`);
     }
+  }
+
+  if (privateMatches.length > 0) {
+    log.info('');
+    log.item('Private ingredients', `written to ~/.ingred/compiled/${projectId}/`);
   }
 }
 

@@ -41,6 +41,7 @@ program
   .option('-t, --targets <ids>', 'Comma-separated target IDs (claude,cursor,copilot,agents,gemini)')
   .option('-i, --interactive', 'Interactively select which ingredients to include')
   .option('-v, --verbose', 'Show detailed matching information')
+  .option('-p, --all-private', 'Mark all matched ingredients as private')
   .action(mixCommand);
 
 program.parseAsync().catch((err: unknown) => {
