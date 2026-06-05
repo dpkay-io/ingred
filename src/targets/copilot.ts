@@ -18,4 +18,7 @@ export const copilot: Target = {
 
     return parts.join('\n') + '\n';
   },
+  privateReference(compiledDir: string): string {
+    return `<!-- Read and follow: ${compiledDir}/private-copilot.md -->`;
+  },
 };

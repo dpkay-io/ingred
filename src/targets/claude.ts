@@ -21,4 +21,7 @@ export const claude: Target = {
 
     return parts.join('\n') + '\n';
   },
+  privateReference(compiledDir: string): string {
+    return `@${compiledDir}/private-claude.md`;
+  },
 };

@@ -61,6 +61,7 @@ export interface Target {
   globalOutputPath?: string;
   globalEnsureDir?: string;
   format(compiled: CompiledOutput, stack: DetectedStack): string;
+  privateReference(compiledDir: string): string;
 }
 
 export interface EmitResult {
