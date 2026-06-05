@@ -35,7 +35,12 @@ export async function loadPrivacyConfig(
   }
   try {
     const raw = await readFile(configPath, 'utf-8');
-    return JSON.parse(raw) as ProjectPrivacyConfig;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed?.privateIngredients)) {
+      log.warn('Privacy config has unexpected shape. Using defaults.');
+      return defaultPrivacyConfig();
+    }
+    return parsed as ProjectPrivacyConfig;
   } catch {
     log.warn('Privacy config is corrupted. Using defaults.');
     return defaultPrivacyConfig();

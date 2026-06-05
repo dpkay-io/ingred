@@ -90,6 +90,16 @@ describe('loadPrivacyConfig', () => {
     const config = await loadPrivacyConfig('abc123', tempDir);
     assert.deepEqual(config, { version: 1, privateIngredients: [] });
   });
+
+  it('returns default config when JSON has unexpected shape', async () => {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    const projDir = join(tempDir, 'projects', 'abc123');
+    await mkdir(projDir, { recursive: true });
+    await writeFile(join(projDir, 'config.json'), JSON.stringify({ version: 1, something: 'else' }));
+
+    const config = await loadPrivacyConfig('abc123', tempDir);
+    assert.deepEqual(config, { version: 1, privateIngredients: [] });
+  });
 });
 
 describe('savePrivacyConfig', () => {
@@ -211,9 +221,9 @@ describe('splitByPrivacy', () => {
 });
 
 describe('getPrivateCompiledDir', () => {
-  it('returns path under compiled/<projectId>', () => {
+  it('returns path under ~/.ingred/compiled/<projectId>', () => {
     const dir = getPrivateCompiledDir('abc123');
-    assert.ok(dir.includes('abc123'));
-    assert.ok(dir.includes('compiled'));
+    assert.ok(dir.endsWith(join('compiled', 'abc123')));
+    assert.ok(dir.includes('.ingred'));
   });
 });
