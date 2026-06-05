@@ -14,7 +14,7 @@ import {
   splitByPrivacy,
   getPrivateCompiledDir,
 } from '../core/privacy.js';
-import type { IngredientFile, ExternalMapping, TargetId, ProjectPrivacyConfig } from '../types.js';
+import type { IngredientFile, ExternalMapping, TargetId } from '../types.js';
 import prompts from 'prompts';
 
 const VALID_TARGETS = new Set<TargetId>(['claude', 'cursor', 'copilot', 'agents', 'gemini']);
@@ -143,7 +143,7 @@ export async function mixCommand(opts: {
     await savePrivacyConfig(projectId, privacyConfig);
   }
 
-  if (opts.interactive) {
+  if (opts.interactive && !opts.allPrivate) {
     const privacySet = new Set(privacyConfig.privateIngredients);
     const privacyResponse = await prompts({
       type: 'multiselect',
@@ -160,16 +160,20 @@ export async function mixCommand(opts: {
       instructions: false,
     });
 
-    if (privacyResponse.private) {
-      const privateIndices = new Set<number>(privacyResponse.private);
-      privacyConfig = {
-        version: 1,
-        privateIngredients: selectedMatches
-          .filter((_, i) => privateIndices.has(i))
-          .map((m) => `${m.ingredient.sourceName}/${m.ingredient.relativePath}`),
-      };
-      await savePrivacyConfig(projectId, privacyConfig);
+    if (!privacyResponse.private) {
+      log.info('');
+      log.warn('Privacy selection cancelled.');
+      return;
     }
+
+    const privateIndices = new Set<number>(privacyResponse.private);
+    privacyConfig = {
+      version: 1,
+      privateIngredients: selectedMatches
+        .filter((_, i) => privateIndices.has(i))
+        .map((m) => `${m.ingredient.sourceName}/${m.ingredient.relativePath}`),
+    };
+    await savePrivacyConfig(projectId, privacyConfig);
   }
 
   const { publicMatches, privateMatches } = splitByPrivacy(selectedMatches, privacyConfig);

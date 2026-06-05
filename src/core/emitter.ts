@@ -136,9 +136,7 @@ export async function emit(
     let privateRef: string | undefined;
     if (privateOpts) {
       const privateProjectCompiled = privateOpts.privateCompiled
-        ? (target.globalOutputPath
-            ? privateOpts.privateCompiled.project
-            : mergeOutputs(privateOpts.privateCompiled.global, privateOpts.privateCompiled.project))
+        ? mergeOutputs(privateOpts.privateCompiled.global, privateOpts.privateCompiled.project)
         : null;
 
       if (privateProjectCompiled && hasContent(privateProjectCompiled)) {

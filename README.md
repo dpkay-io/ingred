@@ -87,6 +87,19 @@ ingred mix --verbose              # detailed output
 
 With `--interactive` (`-i`), you get a multi-select prompt after matching where you can confirm or skip each ingredient before compilation.
 
+### `ingred privacy`
+
+Control which ingredients are kept private (written to `~/.ingred/compiled/` instead of the workspace config files). Private ingredients are still available to AI agents via a reference path appended to each target file.
+
+```bash
+ingred privacy list                                  # show public/private status of matched ingredients
+ingred privacy set <source/path.md> --private        # mark an ingredient as private
+ingred privacy set <source/path.md> --public         # mark it public again
+ingred privacy clear                                 # reset all privacy settings for this project
+```
+
+Privacy is per-project. When `ingred mix` runs, private ingredients are compiled into separate files under `~/.ingred/compiled/<projectId>/` and each target file gets a reference line pointing there.
+
 ## How matching works
 
 Every ingredient file is evaluated through three independent tiers. If any tier matches, the file is included.

@@ -40,5 +40,14 @@
     "developer-tools",
     "cli"
   ],
+  "author": "Deepak Jha <deepakjha.dpk@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dpkay-io/ingred.git"
+  },
+  "homepage": "https://github.com/dpkay-io/ingred#readme",
+  "bugs": {
+    "url": "https://github.com/dpkay-io/ingred/issues"
+  },
   "license": "MIT"
 }
