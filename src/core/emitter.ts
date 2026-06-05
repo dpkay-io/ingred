@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, unlink } from 'node:fs/promises';
 import { fileExists, readText, ensureDir as ensureDirExists } from '../utils/fs.js';
 import type {
   CompileResult,
@@ -15,6 +15,12 @@ import { cursor } from '../targets/cursor.js';
 import { copilot } from '../targets/copilot.js';
 import { agents } from '../targets/agents.js';
 import { gemini } from '../targets/gemini.js';
+
+export interface PrivateEmitOptions {
+  privateCompiled: CompileResult | null;
+  compiledDir: string;
+  tildeCompiledDir: string;
+}
 
 const TARGET_REGISTRY: Map<TargetId, Target> = new Map([
   ['claude', claude],
@@ -42,6 +48,7 @@ async function writeTarget(
   outputPath: string,
   force: boolean,
   location: 'project' | 'global',
+  privateRef?: string,
 ): Promise<EmitResult> {
   if (target.ensureDir && location === 'project') {
     await ensureDirExists(join(stack.workspaceRoot, target.ensureDir));
@@ -65,9 +72,35 @@ async function writeTarget(
     }
   }
 
-  const formatted = target.format(compiled, stack);
+  let formatted = target.format(compiled, stack);
+  if (privateRef) {
+    formatted = formatted.trimEnd() + '\n\n' + privateRef + '\n';
+  }
   await writeFile(outputPath, formatted, 'utf-8');
   return { target: target.id, location, status: 'written', path: outputPath };
+}
+
+async function writePrivateTarget(
+  target: Target,
+  compiled: CompiledOutput,
+  stack: DetectedStack,
+  compiledDir: string,
+): Promise<void> {
+  await ensureDirExists(compiledDir);
+  const formatted = target.format(compiled, stack);
+  // Strip the sentinel comment from private files (they aren't user-facing)
+  const stripped = formatted.replace(INGRED_SENTINEL + '\n', '').replace(INGRED_SENTINEL, '');
+  await writeFile(join(compiledDir, `private-${target.id}.md`), stripped, 'utf-8');
+}
+
+async function cleanupStalePrivateFile(
+  targetId: TargetId,
+  compiledDir: string,
+): Promise<void> {
+  const filePath = join(compiledDir, `private-${targetId}.md`);
+  if (await fileExists(filePath)) {
+    await unlink(filePath);
+  }
 }
 
 export async function emit(
@@ -75,6 +108,7 @@ export async function emit(
   stack: DetectedStack,
   targets: TargetId[],
   force: boolean,
+  privateOpts?: PrivateEmitOptions,
 ): Promise<EmitResult[]> {
   const results: EmitResult[] = [];
 
@@ -98,7 +132,25 @@ export async function emit(
       ? result.project
       : mergeOutputs(result.global, result.project);
 
-    if (hasContent(projectCompiled)) {
+    // Determine private reference for this target
+    let privateRef: string | undefined;
+    if (privateOpts) {
+      const privateProjectCompiled = privateOpts.privateCompiled
+        ? (target.globalOutputPath
+            ? privateOpts.privateCompiled.project
+            : mergeOutputs(privateOpts.privateCompiled.global, privateOpts.privateCompiled.project))
+        : null;
+
+      if (privateProjectCompiled && hasContent(privateProjectCompiled)) {
+        await writePrivateTarget(target, privateProjectCompiled, stack, privateOpts.compiledDir);
+        privateRef = target.privateReference(privateOpts.tildeCompiledDir);
+      } else {
+        // No private content — clean up stale file if privateOpts was provided
+        await cleanupStalePrivateFile(targetId, privateOpts.compiledDir);
+      }
+    }
+
+    if (hasContent(projectCompiled) || privateRef) {
       const projectPath = join(stack.workspaceRoot, target.outputPath);
       const projectResult = await writeTarget(
         target,
@@ -107,6 +159,7 @@ export async function emit(
         projectPath,
         force,
         'project',
+        privateRef,
       );
       results.push(projectResult);
     }
