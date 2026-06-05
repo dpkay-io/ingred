@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/cli.ts",
-    "test": "tsx --test tests/unit/frontmatter.test.ts tests/unit/detector.test.ts tests/unit/matcher.test.ts tests/unit/compiler.test.ts tests/unit/mix-interactive.test.ts",
+    "test": "tsx --test tests/unit/frontmatter.test.ts tests/unit/detector.test.ts tests/unit/matcher.test.ts tests/unit/compiler.test.ts tests/unit/mix-interactive.test.ts tests/unit/privacy.test.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
