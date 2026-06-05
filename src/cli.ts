@@ -3,6 +3,7 @@ import { addCommand } from './commands/add.js';
 import { removeCommand } from './commands/remove.js';
 import { listCommand } from './commands/list.js';
 import { mixCommand } from './commands/mix.js';
+import { privacyListCommand, privacySetCommand, privacyClearCommand } from './commands/privacy.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
 
@@ -43,6 +44,28 @@ program
   .option('-v, --verbose', 'Show detailed matching information')
   .option('-p, --all-private', 'Mark all matched ingredients as private')
   .action(mixCommand);
+
+const privacy = program
+  .command('privacy')
+  .description('Manage ingredient privacy settings for the current workspace');
+
+privacy
+  .command('list')
+  .description('Show ingredients with their privacy status')
+  .action(privacyListCommand);
+
+privacy
+  .command('set')
+  .description('Set privacy for an ingredient')
+  .argument('<ingredient>', 'Ingredient key (sourceName/relativePath)')
+  .option('--private', 'Mark as private')
+  .option('--public', 'Mark as public')
+  .action(privacySetCommand);
+
+privacy
+  .command('clear')
+  .description('Reset all privacy settings for this workspace')
+  .action(privacyClearCommand);
 
 program.parseAsync().catch((err: unknown) => {
   if (err instanceof IngredError) {
