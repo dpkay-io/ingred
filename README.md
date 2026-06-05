@@ -4,6 +4,20 @@ Compile personalized AI coding instructions into native agent config files.
 
 Developers maintain markdown files with their coding preferences — React patterns, testing approaches, communication style, etc. — in git repos or local directories. `ingred` links to these sources, detects the current workspace's tech stack, matches relevant instruction files, and writes them into the config files that AI agents read on startup.
 
+## Privacy-first by design
+
+Your coding instructions are personal. `ingred` lets you keep sensitive ingredients private — they're compiled into `~/.ingred/compiled/` instead of your workspace, so they never end up in version control. Each target file gets a reference line pointing to the private location, so AI agents still pick them up.
+
+```bash
+# Mark a specific ingredient as private
+ingred privacy set my-source/salary-negotiation.md --private
+
+# Or make everything private in one shot
+ingred mix --all-private
+```
+
+Privacy is per-project. Run `ingred privacy list` to see what's public and what's private.
+
 ## Supported targets
 
 | Target | Output file |
@@ -25,9 +39,9 @@ Requires Node.js 18+.
 ## Quick start
 
 ```bash
-# Link an ingredient source (git repo or local directory)
-ingred link https://github.com/you/my-ingredients.git
-ingred link ~/my-ingredients
+# Add an ingredient source (git repo or local directory)
+ingred add https://github.com/you/my-ingredients.git
+ingred add ~/my-ingredients
 
 # See what's linked
 ingred list
@@ -40,27 +54,23 @@ ingred mix
 
 ## Commands
 
-### `ingred link <source>`
+### `ingred add <source>`
 
-Link a git repo or local directory as an ingredient source.
+Add a git repo or local directory as an ingredient source.
 
 ```bash
-ingred link https://github.com/you/ingredients.git
-ingred link ./local-ingredients
-ingred link https://github.com/you/ingredients.git --branch main
+ingred add https://github.com/you/ingredients.git
+ingred add ./local-ingredients
+ingred add https://github.com/you/ingredients.git --branch main
 ```
 
-### `ingred unlink <name>`
+### `ingred remove <name>`
 
 Remove a linked source.
 
 ```bash
-ingred unlink my-ingredients
+ingred remove my-ingredients
 ```
-
-### `ingred add <source>`
-
-Alias for `link`. Establishes the convention for community profiles.
 
 ### `ingred list`
 
@@ -82,6 +92,7 @@ ingred mix --dry-run              # preview without writing
 ingred mix --targets claude,cursor # only specific targets
 ingred mix --force                # overwrite even non-ingred files
 ingred mix --interactive          # select which ingredients to include
+ingred mix --all-private          # mark all matched ingredients as private
 ingred mix --verbose              # detailed output
 ```
 
@@ -97,8 +108,6 @@ ingred privacy set <source/path.md> --private        # mark an ingredient as pri
 ingred privacy set <source/path.md> --public         # mark it public again
 ingred privacy clear                                 # reset all privacy settings for this project
 ```
-
-Privacy is per-project. When `ingred mix` runs, private ingredients are compiled into separate files under `~/.ingred/compiled/<projectId>/` and each target file gets a reference line pointing there.
 
 ## How matching works
 

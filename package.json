@@ -1,6 +1,6 @@
 {
   "name": "ingred",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Compile personalized AI coding instructions into native agent config files",
   "type": "module",
   "bin": {
