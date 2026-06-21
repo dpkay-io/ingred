@@ -121,6 +121,12 @@ function doParse(content: string): ExternalMapping[] {
         continue;
       }
 
+      if (trimmed.startsWith('matchAll:') || trimmed.startsWith('match_all:')) {
+        const value = trimmed.split(':')[1].trim().toLowerCase();
+        current.when!.matchAll = value === 'true';
+        continue;
+      }
+
       // Block array items — use tracked lastWhenKey
       if (trimmed.startsWith('- ') && lastWhenKey) {
         const arrayValue = stripQuotes(trimmed.slice(2).trim());
@@ -150,6 +156,7 @@ function finalize(partial: Partial<ExternalMapping>): ExternalMapping {
     when: {
       dependencies: partial.when?.dependencies,
       filesPresent: partial.when?.filesPresent,
+      matchAll: partial.when?.matchAll,
     },
   };
 }

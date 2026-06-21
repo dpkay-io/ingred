@@ -277,8 +277,8 @@ function matchTier3(
 
 function evaluateWhen(mapping: ExternalMapping, stack: DetectedStack): boolean {
   const { when } = mapping;
+  const matchAll = when.matchAll ?? false;
 
-  // If `when` has no conditions, treat as non-matching (explicit conditions required)
   const hasDeps = when.dependencies && when.dependencies.length > 0;
   const hasFiles = when.filesPresent && when.filesPresent.length > 0;
 
@@ -286,13 +286,24 @@ function evaluateWhen(mapping: ExternalMapping, stack: DetectedStack): boolean {
 
   const stackLower = toLowerSet(stack.technologies);
 
-  // dependencies: match any against stack.technologies
+  if (matchAll) {
+    if (hasDeps) {
+      const allDepsMatch = when.dependencies!.every((dep) => stackLower.has(dep.toLowerCase()));
+      if (!allDepsMatch) return false;
+    }
+    if (hasFiles) {
+      const allFilesMatch = when.filesPresent!.every((f) => stack.detectedFiles.has(f));
+      if (!allFilesMatch) return false;
+    }
+    return true;
+  }
+
+  // OR logic (default)
   if (hasDeps) {
     const depMatch = when.dependencies!.some((dep) => stackLower.has(dep.toLowerCase()));
     if (depMatch) return true;
   }
 
-  // filesPresent: check against stack.detectedFiles keys
   if (hasFiles) {
     const fileMatch = when.filesPresent!.some((f) => stack.detectedFiles.has(f));
     if (fileMatch) return true;

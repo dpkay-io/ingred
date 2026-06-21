@@ -127,4 +127,36 @@ describe('matchIngredients', () => {
     assert.ok(KNOWN_TECH_VOCABULARY.has('postgres'));
     assert.ok(KNOWN_TECH_VOCABULARY.size >= 150);
   });
+
+  describe('AND-conditions (matchAll)', () => {
+    // Use a vue-prefixed filename so tier 1 fails (vue not in reactStack) and
+    // the ingredient can only be matched through the external mapping (tier 3).
+    it('requires all dependencies when matchAll is true', () => {
+      const ingredients = [makeIngredient('vue-specific.md')];
+      const mappings: ExternalMapping[] = [
+        { files: ['vue-specific.md'], when: { dependencies: ['react', 'python'], matchAll: true } },
+      ];
+      const results = matchIngredients(ingredients, reactStack, mappings);
+      assert.equal(results.length, 0);
+    });
+
+    it('matches when all dependencies present with matchAll', () => {
+      const ingredients = [makeIngredient('vue-specific.md')];
+      const mappings: ExternalMapping[] = [
+        { files: ['vue-specific.md'], when: { dependencies: ['react', 'typescript'], matchAll: true } },
+      ];
+      const results = matchIngredients(ingredients, reactStack, mappings);
+      assert.equal(results.length, 1);
+      assert.equal(results[0].matchTier, 3);
+    });
+
+    it('preserves OR logic when matchAll is false', () => {
+      const ingredients = [makeIngredient('vue-specific.md')];
+      const mappings: ExternalMapping[] = [
+        { files: ['vue-specific.md'], when: { dependencies: ['react', 'python'], matchAll: false } },
+      ];
+      const results = matchIngredients(ingredients, reactStack, mappings);
+      assert.equal(results.length, 1);
+    });
+  });
 });
