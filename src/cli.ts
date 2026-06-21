@@ -8,6 +8,7 @@ import { privacyListCommand, privacySetCommand, privacyClearCommand } from './co
 import { excludeCommand, includeCommand, excludeListCommand } from './commands/exclude.js';
 import { diffCommand } from './commands/diff.js';
 import { checkCommand } from './commands/check.js';
+import { previewCommand } from './commands/preview.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
 import { VERSION } from './types.js';
@@ -111,6 +112,13 @@ program
   .argument('[source]', 'Source name to check (all if omitted)')
   .option('--strict', 'Treat warnings as errors')
   .action(checkCommand);
+
+program
+  .command('preview')
+  .description('Preview how a single ingredient renders across targets')
+  .argument('<ingredient>', 'Ingredient key (sourceName/relativePath)')
+  .option('-t, --targets <ids>', 'Comma-separated target IDs')
+  .action(previewCommand);
 
 program.parseAsync().catch((err: unknown) => {
   if (err instanceof IngredError) {
