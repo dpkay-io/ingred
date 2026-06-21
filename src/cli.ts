@@ -4,6 +4,7 @@ import { removeCommand } from './commands/remove.js';
 import { listCommand } from './commands/list.js';
 import { mixCommand } from './commands/mix.js';
 import { initCommand } from './commands/init.js';
+import { updateCommand } from './commands/update.js';
 import { privacyListCommand, privacySetCommand, privacyClearCommand } from './commands/privacy.js';
 import { excludeCommand, includeCommand, excludeListCommand } from './commands/exclude.js';
 import { diffCommand } from './commands/diff.js';
@@ -34,6 +35,13 @@ program
   .description('Remove an ingredient source')
   .argument('<name>', 'Name of the source to remove')
   .action(removeCommand);
+
+program
+  .command('update')
+  .description('Sync ingredient sources')
+  .argument('[name]', 'Source name (all if omitted)')
+  .option('--unpin', 'Remove version pin and update to latest')
+  .action(updateCommand);
 
 program
   .command('list')
