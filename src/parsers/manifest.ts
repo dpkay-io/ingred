@@ -402,6 +402,17 @@ export function parseCabal(content: string): string[] {
   return tokens;
 }
 
+export function parsePackageJsonWorkspaces(content: string): string[] {
+  try {
+    const pkg = JSON.parse(content);
+    if (Array.isArray(pkg.workspaces)) return pkg.workspaces;
+    if (Array.isArray(pkg.workspaces?.packages)) return pkg.workspaces.packages;
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 export function parseDepsEdn(content: string): string[] {
   const tokens: string[] = ['clojure'];
   const regex = /([\w.-]+)\/([\w.-]+)\s*\{/g;

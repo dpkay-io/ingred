@@ -1,10 +1,11 @@
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { readdir } from 'node:fs/promises';
 import { fileExists, readText } from '../utils/fs.js';
 import { log } from '../utils/logger.js';
 import type { DetectedStack } from '../types.js';
 import {
   parsePackageJson,
+  parsePackageJsonWorkspaces,
   parseCargoToml,
   parseGoMod,
   parsePyprojectToml,
@@ -21,6 +22,7 @@ import {
   parseCabal,
   parseDepsEdn,
 } from '../parsers/manifest.js';
+import { parsePnpmWorkspace, parseLernaJson } from '../parsers/workspace.js';
 
 // ---------------------------------------------------------------------------
 // Alias normalization table
@@ -202,10 +204,159 @@ export async function detectStack(workspaceRoot: string): Promise<DetectedStack>
     // readdir failure is non-fatal
   }
 
+  // Monorepo workspace detection: scan sub-packages and merge their tokens
+  const workspaceGlobs = await resolveWorkspaceGlobs(workspaceRoot);
+  if (workspaceGlobs.length > 0) {
+    const subPackageDirs = await resolveGlobDirs(workspaceRoot, workspaceGlobs);
+    for (const subDir of subPackageDirs) {
+      const relBase = relative(workspaceRoot, subDir).replace(/\\/g, '/');
+      for (const [filename, entry] of Object.entries(DETECTION_REGISTRY)) {
+        const filePath = join(subDir, filename);
+        if (!(await fileExists(filePath))) continue;
+
+        let tokens: string[];
+        if (entry.parser === null) {
+          tokens = entry.existenceTokens ?? [];
+        } else {
+          try {
+            const content = await readText(filePath);
+            tokens = entry.parser(content);
+          } catch (err) {
+            log.warn(`Failed to parse ${relBase}/${filename}: ${err instanceof Error ? err.message : String(err)}`);
+            continue;
+          }
+        }
+
+        const key = `workspace:${relBase}/${filename}`;
+        detectedFiles.set(key, tokens);
+        for (const token of tokens) technologies.add(token);
+      }
+
+      // Glob-based entries for sub-packages
+      try {
+        const subEntries = await readdir(subDir, { withFileTypes: true });
+        for (const subEntry of subEntries) {
+          if (!subEntry.isFile()) continue;
+          for (const globEntry of GLOB_DETECTION_ENTRIES) {
+            if (subEntry.name.endsWith(globEntry.extension)) {
+              try {
+                const content = await readText(join(subDir, subEntry.name));
+                const tokens = globEntry.parser(content);
+                const key = `workspace:${relBase}/${subEntry.name}`;
+                detectedFiles.set(key, tokens);
+                for (const token of tokens) technologies.add(token);
+              } catch (err) {
+                log.warn(
+                  `Failed to parse ${relBase}/${subEntry.name}: ${err instanceof Error ? err.message : String(err)}`,
+                );
+              }
+              break;
+            }
+          }
+        }
+      } catch {
+        // readdir failure for sub-package is non-fatal
+      }
+    }
+  }
+
   // Apply alias normalization
   applyAliases(technologies);
 
   return { technologies, detectedFiles, workspaceRoot };
+}
+
+// ---------------------------------------------------------------------------
+// Monorepo workspace helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve workspace glob patterns from package.json (workspaces field),
+ * pnpm-workspace.yaml, and lerna.json at the given root.
+ */
+async function resolveWorkspaceGlobs(root: string): Promise<string[]> {
+  const globs: string[] = [];
+
+  // package.json workspaces
+  const pkgPath = join(root, 'package.json');
+  if (await fileExists(pkgPath)) {
+    try {
+      const content = await readText(pkgPath);
+      globs.push(...parsePackageJsonWorkspaces(content));
+    } catch {
+      // non-fatal
+    }
+  }
+
+  // pnpm-workspace.yaml
+  const pnpmPath = join(root, 'pnpm-workspace.yaml');
+  if (await fileExists(pnpmPath)) {
+    try {
+      const content = await readText(pnpmPath);
+      globs.push(...parsePnpmWorkspace(content));
+    } catch {
+      // non-fatal
+    }
+  }
+
+  // lerna.json
+  const lernaPath = join(root, 'lerna.json');
+  if (await fileExists(lernaPath)) {
+    try {
+      const content = await readText(lernaPath);
+      globs.push(...parseLernaJson(content));
+    } catch {
+      // non-fatal
+    }
+  }
+
+  return [...new Set(globs)];
+}
+
+/**
+ * Resolve glob patterns like `packages/*` to actual sub-directories.
+ * Supports single-level wildcard (`*`) at the end only.
+ * Exact paths (no wildcard) are included if they exist and are directories.
+ */
+async function resolveGlobDirs(root: string, globs: string[]): Promise<string[]> {
+  const dirs: string[] = [];
+
+  for (const pattern of globs) {
+    const wildcardIndex = pattern.indexOf('*');
+    if (wildcardIndex === -1) {
+      // Exact path — include if it exists as a directory
+      const fullPath = join(root, pattern);
+      try {
+        const entries = await readdir(fullPath, { withFileTypes: true });
+        // Existence confirmed — it's a directory
+        void entries;
+        dirs.push(fullPath);
+      } catch {
+        // Directory doesn't exist or not readable — skip
+      }
+      continue;
+    }
+
+    // Pattern with wildcard — resolve the parent directory, then list entries
+    const parentGlob = pattern.slice(0, wildcardIndex).replace(/\/$/, '');
+    const suffix = pattern.slice(wildcardIndex + 1).replace(/^\//, '');
+    const parentDir = join(root, parentGlob);
+
+    try {
+      const entries = await readdir(parentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith('.')) continue;
+        // If there's a suffix after the wildcard, it must match the end of the name
+        if (suffix && !entry.name.endsWith(suffix)) continue;
+        dirs.push(join(parentDir, entry.name));
+      }
+    } catch {
+      // Parent directory doesn't exist or not readable — skip
+    }
+  }
+
+  return dirs;
 }
 
 // ---------------------------------------------------------------------------
