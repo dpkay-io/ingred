@@ -61,7 +61,7 @@ export interface CompiledOutput {
 export type TargetId = 'claude' | 'cursor' | 'copilot' | 'agents' | 'gemini' | 'windsurf' | 'cline' | 'aider';
 
 export interface Target {
-  id: TargetId;
+  id: TargetId | string;
   outputPath: string;
   ensureDir?: string;
   globalOutputPath?: string;
@@ -71,7 +71,7 @@ export interface Target {
 }
 
 export interface EmitResult {
-  target: TargetId;
+  target: TargetId | string;
   location: 'project' | 'global';
   status: 'written' | 'skipped';
   path?: string;

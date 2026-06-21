@@ -220,8 +220,8 @@ export async function mixCommand(opts: {
   }
 }
 
-function checkSizeWarning(targetId: TargetId, compiled: { personaSection: string; engineeringSection: string }): void {
-  const threshold = SIZE_WARNINGS[targetId];
+function checkSizeWarning(targetId: TargetId | string, compiled: { personaSection: string; engineeringSection: string }): void {
+  const threshold = SIZE_WARNINGS[targetId as TargetId];
   if (!threshold) return;
 
   const totalLines =

@@ -5,6 +5,7 @@ import { detectStack } from './detector.js';
 import { matchIngredients } from './matcher.js';
 import { compile } from './compiler.js';
 import { getProjectId, loadPrivacyConfig, splitByPrivacy } from './privacy.js';
+import { registerCustomTargets } from './emitter.js';
 import { NoSourcesError, IngredError } from '../utils/errors.js';
 import { log } from '../utils/logger.js';
 import type {
@@ -47,16 +48,21 @@ const BUILTIN_TARGETS = new Set<TargetId>([
   'windsurf', 'cline', 'aider',
 ]);
 
-export function resolveTargetIds(targetsOpt: string | undefined, defaults: TargetId[]): TargetId[] {
+export function resolveTargetIds(
+  targetsOpt: string | undefined,
+  defaults: TargetId[],
+  customTargetIds: Set<string> = new Set(),
+): TargetId[] {
   if (!targetsOpt) return defaults;
+  const allKnown = new Set<string>([...BUILTIN_TARGETS, ...customTargetIds]);
   const requested = targetsOpt.split(',').map((t) => t.trim().toLowerCase());
-  const invalid = requested.filter((t) => !BUILTIN_TARGETS.has(t as TargetId));
-  const valid = requested.filter((t) => BUILTIN_TARGETS.has(t as TargetId)) as TargetId[];
+  const invalid = requested.filter((t) => !allKnown.has(t));
+  const valid = requested.filter((t) => allKnown.has(t)) as TargetId[];
   if (invalid.length > 0) {
-    log.warn(`Unknown target(s): ${invalid.join(', ')}. Valid targets: ${[...BUILTIN_TARGETS].join(', ')}`);
+    log.warn(`Unknown target(s): ${invalid.join(', ')}. Valid targets: ${[...allKnown].join(', ')}`);
   }
   if (valid.length === 0) {
-    throw new IngredError('No valid targets specified.', `Valid targets: ${[...BUILTIN_TARGETS].join(', ')}`);
+    throw new IngredError('No valid targets specified.', `Valid targets: ${[...allKnown].join(', ')}`);
   }
   return valid;
 }
@@ -68,7 +74,15 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
     throw new NoSourcesError();
   }
 
-  const targetIds = resolveTargetIds(opts.targets, config.settings.targets);
+  const customTargetIds = new Set<string>(
+    (config.customTargets ?? []).map((ct) => ct.id),
+  );
+
+  if (customTargetIds.size > 0) {
+    registerCustomTargets(config.customTargets!);
+  }
+
+  const targetIds = resolveTargetIds(opts.targets, config.settings.targets, customTargetIds);
   const workspaceRoot = resolve('.');
 
   // Sync sources
