@@ -17,7 +17,7 @@ import {
 import type { IngredientFile, ExternalMapping, TargetId } from '../types.js';
 import prompts from 'prompts';
 
-const VALID_TARGETS = new Set<TargetId>(['claude', 'cursor', 'copilot', 'agents', 'gemini']);
+const VALID_TARGETS = new Set<TargetId>(['claude', 'cursor', 'copilot', 'agents', 'gemini', 'windsurf', 'cline', 'aider']);
 
 const SIZE_WARNINGS: Partial<Record<TargetId, number>> = {
   claude: 80,
@@ -25,6 +25,9 @@ const SIZE_WARNINGS: Partial<Record<TargetId, number>> = {
   copilot: 120,
   agents: 150,
   gemini: 120,
+  windsurf: 150,
+  cline: 120,
+  aider: 100,
 };
 
 export async function mixCommand(opts: {
@@ -139,6 +142,7 @@ export async function mixCommand(opts: {
       privateIngredients: selectedMatches.map(
         (m) => `${m.ingredient.sourceName}/${m.ingredient.relativePath}`,
       ),
+      excludedIngredients: privacyConfig.excludedIngredients,
     };
     await savePrivacyConfig(projectId, privacyConfig);
   }
@@ -172,6 +176,7 @@ export async function mixCommand(opts: {
       privateIngredients: selectedMatches
         .filter((_, i) => privateIndices.has(i))
         .map((m) => `${m.ingredient.sourceName}/${m.ingredient.relativePath}`),
+      excludedIngredients: privacyConfig.excludedIngredients,
     };
     await savePrivacyConfig(projectId, privacyConfig);
   }

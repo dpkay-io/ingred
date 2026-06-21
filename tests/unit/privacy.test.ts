@@ -11,7 +11,7 @@ import {
   getProjectId,
   getPrivateCompiledDir,
 } from '../../src/core/privacy.js';
-import type { MatchResult, ProjectPrivacyConfig } from '../../src/types.js';
+import type { MatchResult, ProjectConfig } from '../../src/types.js';
 import { DEFAULT_META } from '../../src/types.js';
 
 function makeMatch(
@@ -64,14 +64,14 @@ describe('loadPrivacyConfig', () => {
 
   it('returns default config when file does not exist', async () => {
     const config = await loadPrivacyConfig('nonexistent-id', tempDir);
-    assert.deepEqual(config, { version: 1, privateIngredients: [] });
+    assert.deepEqual(config, { version: 1, privateIngredients: [], excludedIngredients: [] });
   });
 
   it('loads existing config', async () => {
     const { mkdir, writeFile } = await import('node:fs/promises');
     const projDir = join(tempDir, 'projects', 'abc123');
     await mkdir(projDir, { recursive: true });
-    const data: ProjectPrivacyConfig = {
+    const data: ProjectConfig = {
       version: 1,
       privateIngredients: ['src/react.md'],
     };
@@ -88,7 +88,7 @@ describe('loadPrivacyConfig', () => {
     await writeFile(join(projDir, 'config.json'), '{bad json');
 
     const config = await loadPrivacyConfig('abc123', tempDir);
-    assert.deepEqual(config, { version: 1, privateIngredients: [] });
+    assert.deepEqual(config, { version: 1, privateIngredients: [], excludedIngredients: [] });
   });
 
   it('returns default config when JSON has unexpected shape', async () => {
@@ -98,7 +98,7 @@ describe('loadPrivacyConfig', () => {
     await writeFile(join(projDir, 'config.json'), JSON.stringify({ version: 1, something: 'else' }));
 
     const config = await loadPrivacyConfig('abc123', tempDir);
-    assert.deepEqual(config, { version: 1, privateIngredients: [] });
+    assert.deepEqual(config, { version: 1, privateIngredients: [], excludedIngredients: [] });
   });
 });
 
@@ -114,7 +114,7 @@ describe('savePrivacyConfig', () => {
   });
 
   it('creates directories and writes config file', async () => {
-    const config: ProjectPrivacyConfig = {
+    const config: ProjectConfig = {
       version: 1,
       privateIngredients: ['src/react.md', 'src/ts.md'],
     };
@@ -138,7 +138,7 @@ describe('clearPrivacyConfig', () => {
   });
 
   it('resets config to empty privateIngredients', async () => {
-    const config: ProjectPrivacyConfig = {
+    const config: ProjectConfig = {
       version: 1,
       privateIngredients: ['src/react.md'],
     };
@@ -163,7 +163,7 @@ describe('splitByPrivacy', () => {
       makeMatch('my-source', 'ts.md', 'TS rules'),
       makeMatch('other-source', 'testing.md', 'Test rules'),
     ];
-    const config: ProjectPrivacyConfig = {
+    const config: ProjectConfig = {
       version: 1,
       privateIngredients: ['my-source/react.md'],
     };
@@ -182,7 +182,7 @@ describe('splitByPrivacy', () => {
       makeMatch('src', 'a.md', 'A'),
       makeMatch('src', 'b.md', 'B'),
     ];
-    const config: ProjectPrivacyConfig = {
+    const config: ProjectConfig = {
       version: 1,
       privateIngredients: [],
     };
@@ -197,7 +197,7 @@ describe('splitByPrivacy', () => {
       makeMatch('src', 'a.md', 'A'),
       makeMatch('src', 'b.md', 'B'),
     ];
-    const config: ProjectPrivacyConfig = {
+    const config: ProjectConfig = {
       version: 1,
       privateIngredients: ['src/a.md', 'src/b.md'],
     };
@@ -209,7 +209,7 @@ describe('splitByPrivacy', () => {
 
   it('ignores private entries that do not match any ingredient', () => {
     const matches = [makeMatch('src', 'a.md', 'A')];
-    const config: ProjectPrivacyConfig = {
+    const config: ProjectConfig = {
       version: 1,
       privateIngredients: ['src/nonexistent.md'],
     };

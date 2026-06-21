@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { ensureDir, fileExists } from '../utils/fs.js';
 import { shortHash } from '../utils/hash.js';
-import { type ProjectPrivacyConfig, defaultPrivacyConfig } from '../types.js';
+import { type ProjectConfig, defaultProjectConfig } from '../types.js';
 import type { MatchResult } from '../types.js';
 import { log } from '../utils/logger.js';
 
@@ -28,28 +28,31 @@ function ingredientKey(m: MatchResult): string {
 export async function loadPrivacyConfig(
   projectId: string,
   baseDir?: string,
-): Promise<ProjectPrivacyConfig> {
+): Promise<ProjectConfig> {
   const configPath = join(getProjectsDir(baseDir), projectId, 'config.json');
   if (!(await fileExists(configPath))) {
-    return defaultPrivacyConfig();
+    return defaultProjectConfig();
   }
   try {
     const raw = await readFile(configPath, 'utf-8');
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed?.privateIngredients)) {
       log.warn('Privacy config has unexpected shape. Using defaults.');
-      return defaultPrivacyConfig();
+      return defaultProjectConfig();
     }
-    return parsed as ProjectPrivacyConfig;
+    if (!Array.isArray(parsed.excludedIngredients)) {
+      parsed.excludedIngredients = [];
+    }
+    return parsed as ProjectConfig;
   } catch {
     log.warn('Privacy config is corrupted. Using defaults.');
-    return defaultPrivacyConfig();
+    return defaultProjectConfig();
   }
 }
 
 export async function savePrivacyConfig(
   projectId: string,
-  config: ProjectPrivacyConfig,
+  config: ProjectConfig,
   baseDir?: string,
 ): Promise<void> {
   const dir = join(getProjectsDir(baseDir), projectId);
@@ -61,12 +64,12 @@ export async function clearPrivacyConfig(
   projectId: string,
   baseDir?: string,
 ): Promise<void> {
-  await savePrivacyConfig(projectId, defaultPrivacyConfig(), baseDir);
+  await savePrivacyConfig(projectId, defaultProjectConfig(), baseDir);
 }
 
 export function splitByPrivacy(
   matches: MatchResult[],
-  config: ProjectPrivacyConfig,
+  config: ProjectConfig,
 ): { publicMatches: MatchResult[]; privateMatches: MatchResult[] } {
   const privateSet = new Set(config.privateIngredients);
   const publicMatches: MatchResult[] = [];
