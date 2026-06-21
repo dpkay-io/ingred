@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { readdir } from 'node:fs/promises';
 import { fileExists, readText } from '../utils/fs.js';
 import { log } from '../utils/logger.js';
 import type { DetectedStack } from '../types.js';
@@ -13,6 +14,12 @@ import {
   parseComposerJson,
   parsePomXml,
   parseBuildGradle,
+  parseCsproj,
+  parseFsproj,
+  parseBuildSbt,
+  parseMixExs,
+  parseCabal,
+  parseDepsEdn,
 } from '../parsers/manifest.js';
 
 // ---------------------------------------------------------------------------
@@ -109,7 +116,26 @@ const DETECTION_REGISTRY: Record<string, DetectionEntry> = {
   'Dockerfile': { parser: null, existenceTokens: ['docker'] },
   'docker-compose.yml': { parser: null, existenceTokens: ['docker'] },
   'docker-compose.yaml': { parser: null, existenceTokens: ['docker'] },
+  'build.sbt': { parser: parseBuildSbt },
+  'mix.exs': { parser: parseMixExs },
+  'deps.edn': { parser: parseDepsEdn },
+  'global.json': { parser: null, existenceTokens: ['dotnet'] },
 };
+
+// ---------------------------------------------------------------------------
+// Glob-based detection entries (for files matched by extension, not exact name)
+// ---------------------------------------------------------------------------
+
+type GlobEntry = {
+  extension: string;
+  parser: (content: string) => string[];
+};
+
+const GLOB_DETECTION_ENTRIES: GlobEntry[] = [
+  { extension: '.csproj', parser: parseCsproj },
+  { extension: '.fsproj', parser: parseFsproj },
+  { extension: '.cabal', parser: parseCabal },
+];
 
 // ---------------------------------------------------------------------------
 // Main detection function
@@ -151,6 +177,29 @@ export async function detectStack(workspaceRoot: string): Promise<DetectedStack>
     for (const token of tokens) {
       technologies.add(token);
     }
+  }
+
+  // Glob-based detection: scan root for files matching known extensions
+  try {
+    const rootEntries = await readdir(workspaceRoot, { withFileTypes: true });
+    for (const entry of rootEntries) {
+      if (!entry.isFile()) continue;
+      for (const globEntry of GLOB_DETECTION_ENTRIES) {
+        if (entry.name.endsWith(globEntry.extension)) {
+          try {
+            const content = await readText(join(workspaceRoot, entry.name));
+            const tokens = globEntry.parser(content);
+            detectedFiles.set(entry.name, tokens);
+            for (const token of tokens) technologies.add(token);
+          } catch (err) {
+            log.warn(`Failed to parse ${entry.name}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+          break;
+        }
+      }
+    }
+  } catch {
+    // readdir failure is non-fatal
   }
 
   // Apply alias normalization

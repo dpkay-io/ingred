@@ -321,3 +321,95 @@ function extractGradleArtifact(coord: string, tokens: string[]): void {
     tokens.push(parts[1].toLowerCase());
   }
 }
+
+export function parseCsproj(content: string): string[] {
+  const tokens: string[] = ['dotnet', 'csharp'];
+  const regex = /<PackageReference\s+Include="([^"]+)"/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    tokens.push(match[1].toLowerCase().replace(/\./g, '-'));
+  }
+
+  return tokens;
+}
+
+export function parseFsproj(content: string): string[] {
+  const tokens: string[] = ['dotnet', 'fsharp'];
+  const regex = /<PackageReference\s+Include="([^"]+)"/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    tokens.push(match[1].toLowerCase().replace(/\./g, '-'));
+  }
+
+  return tokens;
+}
+
+export function parseBuildSbt(content: string): string[] {
+  const tokens: string[] = ['scala', 'sbt'];
+  const regex = /%%?\s*"([^"]+)"\s*%/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    const artifact = match[1].toLowerCase();
+    // Take last part after '/'
+    const parts = artifact.split('/');
+    tokens.push(parts[parts.length - 1]);
+  }
+
+  return [...new Set(tokens)];
+}
+
+export function parseMixExs(content: string): string[] {
+  const tokens: string[] = ['elixir'];
+  const regex = /\{:(\w+),\s*"[^"]*"\}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    tokens.push(match[1].toLowerCase());
+  }
+
+  if (tokens.includes('phoenix')) {
+    tokens.push('phoenix');
+  }
+
+  return [...new Set(tokens)];
+}
+
+export function parseCabal(content: string): string[] {
+  const tokens: string[] = ['haskell', 'cabal'];
+
+  // Match build-depends: up to the next line with less or equal indentation that has a field name
+  const buildDependsMatch = content.match(/build-depends\s*:([\s\S]*?)(?=\n\s{0,2}\S|$)/);
+  if (buildDependsMatch) {
+    const depsBlock = buildDependsMatch[1];
+    const parts = depsBlock.split(',');
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      // Extract first word (package name, before version constraints)
+      const nameMatch = trimmed.match(/^([a-zA-Z0-9_-]+)/);
+      if (nameMatch) {
+        const name = nameMatch[1].toLowerCase();
+        if (name !== 'base') {
+          tokens.push(name);
+        }
+      }
+    }
+  }
+
+  return tokens;
+}
+
+export function parseDepsEdn(content: string): string[] {
+  const tokens: string[] = ['clojure'];
+  const regex = /([\w.-]+)\/([\w.-]+)\s*\{/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    tokens.push(match[2].toLowerCase());
+  }
+
+  return [...new Set(tokens)];
+}
