@@ -12,6 +12,7 @@ import { checkCommand } from './commands/check.js';
 import { previewCommand } from './commands/preview.js';
 import { searchCommand } from './commands/search.js';
 import { installHooksCommand, uninstallHooksCommand } from './commands/hooks.js';
+import { statusCommand } from './commands/status.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
 import { VERSION } from './types.js';
@@ -145,6 +146,11 @@ program
   .command('uninstall-hooks')
   .description('Remove ingred-installed git hooks')
   .action(uninstallHooksCommand);
+
+program
+  .command('status')
+  .description('Show overview of sources, matches, and target files')
+  .action(statusCommand);
 
 program.parseAsync().catch((err: unknown) => {
   if (err instanceof IngredError) {
