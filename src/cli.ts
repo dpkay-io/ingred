@@ -10,6 +10,7 @@ import { diffCommand } from './commands/diff.js';
 import { checkCommand } from './commands/check.js';
 import { previewCommand } from './commands/preview.js';
 import { searchCommand } from './commands/search.js';
+import { installHooksCommand, uninstallHooksCommand } from './commands/hooks.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
 import { VERSION } from './types.js';
@@ -126,6 +127,16 @@ program
   .description('Search GitHub for ingredient repos')
   .argument('<query>', 'Search query')
   .action(searchCommand);
+
+program
+  .command('install-hooks')
+  .description('Install git hooks for auto-running ingred mix')
+  .action(installHooksCommand);
+
+program
+  .command('uninstall-hooks')
+  .description('Remove ingred-installed git hooks')
+  .action(uninstallHooksCommand);
 
 program.parseAsync().catch((err: unknown) => {
   if (err instanceof IngredError) {
