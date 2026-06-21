@@ -1,6 +1,6 @@
 {
   "name": "ingred",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Compile personalized AI coding instructions into native agent config files",
   "type": "module",
   "bin": {
@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/cli.ts",
-    "test": "tsx --test tests/unit/frontmatter.test.ts tests/unit/detector.test.ts tests/unit/matcher.test.ts tests/unit/compiler.test.ts tests/unit/mix-interactive.test.ts tests/unit/privacy.test.ts tests/unit/emitter.test.ts tests/unit/targets.test.ts tests/unit/custom-targets.test.ts tests/unit/composition.test.ts",
+    "test": "tsx --test tests/unit/frontmatter.test.ts tests/unit/detector.test.ts tests/unit/matcher.test.ts tests/unit/compiler.test.ts tests/unit/mix-interactive.test.ts tests/unit/privacy.test.ts tests/unit/emitter.test.ts tests/unit/targets.test.ts tests/unit/custom-targets.test.ts tests/unit/init.test.ts tests/unit/diff.test.ts tests/unit/exclude.test.ts tests/unit/check.test.ts tests/unit/monorepo.test.ts tests/unit/composition.test.ts tests/unit/template.test.ts tests/unit/profiles.test.ts tests/unit/gitignore.test.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
