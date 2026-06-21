@@ -165,6 +165,10 @@ function assignScalarValue(meta: IngredientMeta, key: string, rawValue: string):
       meta.triggers = [value];
       break;
     }
+    case 'extends': {
+      meta.extends = value;
+      break;
+    }
     default:
       break;
   }
