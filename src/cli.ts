@@ -3,6 +3,7 @@ import { addCommand } from './commands/add.js';
 import { removeCommand } from './commands/remove.js';
 import { listCommand } from './commands/list.js';
 import { mixCommand } from './commands/mix.js';
+import { initCommand } from './commands/init.js';
 import { privacyListCommand, privacySetCommand, privacyClearCommand } from './commands/privacy.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
@@ -34,6 +35,13 @@ program
   .option('-v, --verbose', 'Show individual ingredient files')
   .option('-m, --matched', 'Show which ingredients match the current workspace')
   .action(listCommand);
+
+program
+  .command('init')
+  .description('Initialize an ingredients repo or workspace config')
+  .option('--repo [name]', 'Create a new ingredients repo (default: my-ingredients)')
+  .option('--workspace', 'Create .ingred.yaml in current directory')
+  .action(initCommand);
 
 program
   .command('mix')
