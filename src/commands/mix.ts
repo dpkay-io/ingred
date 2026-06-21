@@ -69,12 +69,20 @@ export async function mixCommand(opts: {
       type: 'multiselect',
       name: 'selected',
       message: 'Select ingredients to include',
-      choices: matches.map((m, i) => ({
-        title: `${m.ingredient.sourceName}/${m.ingredient.relativePath}`,
-        description: `Tier ${m.matchTier}: ${m.matchReason}`,
-        value: i,
-        selected: true,
-      })),
+      choices: matches.map((m, i) => {
+        const meta = m.ingredient.meta;
+        const triggerInfo = meta.always
+          ? 'always'
+          : meta.triggers.length > 0
+            ? `triggers: ${meta.triggers.join(', ')}`
+            : 'universal';
+        return {
+          title: `${m.ingredient.sourceName}/${m.ingredient.relativePath}`,
+          description: `Tier ${m.matchTier} | ${triggerInfo} | scope: ${meta.scope} | priority: ${meta.priority}`,
+          value: i,
+          selected: true,
+        };
+      }),
       instructions: false,
     });
 
