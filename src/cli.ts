@@ -5,6 +5,7 @@ import { listCommand } from './commands/list.js';
 import { mixCommand } from './commands/mix.js';
 import { initCommand } from './commands/init.js';
 import { privacyListCommand, privacySetCommand, privacyClearCommand } from './commands/privacy.js';
+import { excludeCommand, includeCommand, excludeListCommand } from './commands/exclude.js';
 import { diffCommand } from './commands/diff.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
@@ -83,6 +84,25 @@ privacy
   .command('clear')
   .description('Reset all privacy settings for this workspace')
   .action(privacyClearCommand);
+
+program
+  .command('exclude')
+  .description('Exclude an ingredient from compilation')
+  .argument('[ingredient]', 'Ingredient key (sourceName/relativePath)')
+  .option('-l, --list', 'Show current exclusions')
+  .action(async (ingredient: string | undefined, opts: { list?: boolean }) => {
+    if (opts.list || !ingredient) {
+      await excludeListCommand();
+    } else {
+      await excludeCommand(ingredient);
+    }
+  });
+
+program
+  .command('include')
+  .description('Remove an ingredient from the exclusion list')
+  .argument('<ingredient>', 'Ingredient key (sourceName/relativePath)')
+  .action(includeCommand);
 
 program.parseAsync().catch((err: unknown) => {
   if (err instanceof IngredError) {

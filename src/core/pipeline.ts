@@ -137,6 +137,16 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
   const projectId = getProjectId(workspaceRoot);
   const privacyConfig = await loadPrivacyConfig(projectId);
 
+  // Filter excluded ingredients
+  const excludedSet = new Set(privacyConfig.excludedIngredients);
+  const filteredMatches = matches.filter(
+    (m) => !excludedSet.has(`${m.ingredient.sourceName}/${m.ingredient.relativePath}`),
+  );
+  if (!opts.quiet && filteredMatches.length < matches.length) {
+    log.item('Excluded', `${matches.length - filteredMatches.length} ingredients`);
+  }
+  const selectedMatches = filteredMatches;
+
   // Early return if compile is skipped (caller handles selection + compile)
   if (opts.skipCompile) {
     const emptyCompiled: CompileResult = {
@@ -149,7 +159,7 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
       allIngredients,
       allMappings,
       matches,
-      selectedMatches: matches,
+      selectedMatches,
       publicMatches: [],
       privateMatches: [],
       compiled: emptyCompiled,
@@ -161,7 +171,7 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
   }
 
   // Split by privacy and compile
-  const { publicMatches, privateMatches } = splitByPrivacy(matches, privacyConfig);
+  const { publicMatches, privateMatches } = splitByPrivacy(selectedMatches, privacyConfig);
   const compiled = compile(publicMatches);
   const privateCompiled = privateMatches.length > 0 ? compile(privateMatches) : null;
 
@@ -171,7 +181,7 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
     allIngredients,
     allMappings,
     matches,
-    selectedMatches: matches,
+    selectedMatches,
     publicMatches,
     privateMatches,
     compiled,
