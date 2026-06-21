@@ -5,6 +5,7 @@ import { listCommand } from './commands/list.js';
 import { mixCommand } from './commands/mix.js';
 import { initCommand } from './commands/init.js';
 import { privacyListCommand, privacySetCommand, privacyClearCommand } from './commands/privacy.js';
+import { diffCommand } from './commands/diff.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
 import { VERSION } from './types.js';
@@ -54,6 +55,12 @@ program
   .option('-p, --all-private', 'Mark all matched ingredients as private')
   .option('-q, --quiet', 'Suppress all output except errors')
   .action(mixCommand);
+
+program
+  .command('diff')
+  .description('Show what ingred mix would change without writing')
+  .option('-t, --targets <ids>', 'Comma-separated target IDs')
+  .action(diffCommand);
 
 const privacy = program
   .command('privacy')
