@@ -43,6 +43,15 @@ export async function gitCurrentBranch(repoPath: string): Promise<string> {
   return stdout.trim();
 }
 
+export async function gitCheckoutPin(repoPath: string, pin: string): Promise<void> {
+  await execFileAsync('git', ['-C', repoPath, 'fetch', '--tags'], { timeout: 30_000 });
+  try {
+    await execFileAsync('git', ['-C', repoPath, 'checkout', `tags/${pin}`], { timeout: 10_000 });
+  } catch {
+    await execFileAsync('git', ['-C', repoPath, 'checkout', pin], { timeout: 10_000 });
+  }
+}
+
 export function isGitUrl(input: string): boolean {
   return (
     input.includes('://') ||

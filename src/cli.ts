@@ -29,6 +29,7 @@ program
   .description('Add an ingredient source (git repo or local directory)')
   .argument('<source>', 'Git repo URL or local directory path')
   .option('-b, --branch <branch>', 'Git branch to use')
+  .option('--pin <ref>', 'Pin to a git tag or commit SHA')
   .action(addCommand);
 
 program

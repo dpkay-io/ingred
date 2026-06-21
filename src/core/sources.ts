@@ -1,6 +1,6 @@
 import { join, relative } from 'node:path';
 import { walkMarkdownFiles, readText, fileExists } from '../utils/fs.js';
-import { gitPull } from '../utils/git.js';
+import { gitPull, gitCheckoutPin } from '../utils/git.js';
 import { parseFrontmatter } from '../parsers/frontmatter.js';
 import { parseIngredYaml } from '../parsers/ingred-yaml.js';
 import { log } from '../utils/logger.js';
@@ -14,7 +14,11 @@ export interface CollectedSource {
 export async function syncSource(source: IngredSource): Promise<void> {
   if (source.type === 'git') {
     try {
-      await gitPull(source.cachePath);
+      if (source.pin) {
+        await gitCheckoutPin(source.cachePath, source.pin);
+      } else {
+        await gitPull(source.cachePath);
+      }
     } catch {
       log.warn(`Could not update "${source.name}". Using cached version.`);
     }

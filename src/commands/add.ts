@@ -2,7 +2,7 @@ import { resolve, basename } from 'node:path';
 import { rm } from 'node:fs/promises';
 import { loadConfig, saveConfig, getCacheDir } from '../core/config.js';
 import { ensureDir, fileExists, walkMarkdownFiles } from '../utils/fs.js';
-import { isGitUrl, assertGitAvailable, gitClone, gitPull, gitCurrentBranch } from '../utils/git.js';
+import { isGitUrl, assertGitAvailable, gitClone, gitPull, gitCurrentBranch, gitCheckoutPin } from '../utils/git.js';
 import { shortHash } from '../utils/hash.js';
 import { IngredError } from '../utils/errors.js';
 import { log } from '../utils/logger.js';
@@ -10,7 +10,7 @@ import type { IngredSource } from '../types.js';
 
 export async function addCommand(
   source: string,
-  opts: { branch?: string },
+  opts: { branch?: string; pin?: string },
 ): Promise<void> {
   const config = await loadConfig();
   const isGit = isGitUrl(source);
@@ -47,6 +47,10 @@ export async function addCommand(
     } else {
       log.info(`Cloning ${source}...`);
       await gitClone(source, cachePath, opts.branch);
+    }
+
+    if (opts.pin) {
+      await gitCheckoutPin(cachePath, opts.pin);
     }
   } else {
     cachePath = resolve(source);
@@ -94,6 +98,7 @@ export async function addCommand(
     cachePath,
     addedAt: new Date().toISOString(),
     ...(opts.branch ? { branch: opts.branch } : {}),
+    ...(opts.pin ? { pin: opts.pin } : {}),
   };
 
   config.sources.push(entry);
