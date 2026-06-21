@@ -9,6 +9,7 @@ import { excludeCommand, includeCommand, excludeListCommand } from './commands/e
 import { diffCommand } from './commands/diff.js';
 import { checkCommand } from './commands/check.js';
 import { previewCommand } from './commands/preview.js';
+import { searchCommand } from './commands/search.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
 import { VERSION } from './types.js';
@@ -119,6 +120,12 @@ program
   .argument('<ingredient>', 'Ingredient key (sourceName/relativePath)')
   .option('-t, --targets <ids>', 'Comma-separated target IDs')
   .action(previewCommand);
+
+program
+  .command('search')
+  .description('Search GitHub for ingredient repos')
+  .argument('<query>', 'Search query')
+  .action(searchCommand);
 
 program.parseAsync().catch((err: unknown) => {
   if (err instanceof IngredError) {
