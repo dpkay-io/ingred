@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { writeFile, unlink } from 'node:fs/promises';
 import { fileExists, readText, ensureDir as ensureDirExists } from '../utils/fs.js';
 import type {
@@ -10,6 +10,7 @@ import type {
   Target,
   TargetId,
 } from '../types.js';
+import { resolveTemplateVars, type TemplateVars } from './template.js';
 import { INGRED_SENTINEL } from '../types.js';
 import { claude } from '../targets/claude.js';
 import { cursor } from '../targets/cursor.js';
@@ -39,6 +40,13 @@ const TARGET_REGISTRY: Map<TargetId | string, Target> = new Map([
 
 function hasContent(compiled: CompiledOutput): boolean {
   return compiled.personaSection.length > 0 || compiled.engineeringSection.length > 0;
+}
+
+function resolveCompiledOutput(output: CompiledOutput, vars: TemplateVars): CompiledOutput {
+  return {
+    personaSection: resolveTemplateVars(output.personaSection, vars),
+    engineeringSection: resolveTemplateVars(output.engineeringSection, vars),
+  };
 }
 
 function mergeOutputs(a: CompiledOutput, b: CompiledOutput): CompiledOutput {
@@ -207,14 +215,25 @@ export async function emit(
 ): Promise<EmitResult[]> {
   const results: EmitResult[] = [];
 
+  const baseTemplateVars = {
+    stack: [...stack.technologies].sort().join(', '),
+    workspace: basename(stack.workspaceRoot),
+    date: new Date().toISOString().slice(0, 10),
+  };
+
   for (const targetId of targets) {
     const target = TARGET_REGISTRY.get(targetId);
     if (!target) continue;
 
-    if (target.globalOutputPath && hasContent(result.global)) {
+    const templateVars: TemplateVars = { ...baseTemplateVars, target: targetId };
+
+    const resolvedGlobal = resolveCompiledOutput(result.global, templateVars);
+    const resolvedProject = resolveCompiledOutput(result.project, templateVars);
+
+    if (target.globalOutputPath && hasContent(resolvedGlobal)) {
       const globalResult = await writeTarget(
         target,
-        result.global,
+        resolvedGlobal,
         stack,
         target.globalOutputPath,
         force,
@@ -224,14 +243,17 @@ export async function emit(
     }
 
     const projectCompiled = target.globalOutputPath
-      ? result.project
-      : mergeOutputs(result.global, result.project);
+      ? resolvedProject
+      : mergeOutputs(resolvedGlobal, resolvedProject);
 
     // Determine private reference for this target
     let privateRef: string | undefined;
     if (privateOpts) {
       const privateProjectCompiled = privateOpts.privateCompiled
-        ? mergeOutputs(privateOpts.privateCompiled.global, privateOpts.privateCompiled.project)
+        ? resolveCompiledOutput(
+            mergeOutputs(privateOpts.privateCompiled.global, privateOpts.privateCompiled.project),
+            templateVars,
+          )
         : null;
 
       if (privateProjectCompiled && hasContent(privateProjectCompiled)) {
