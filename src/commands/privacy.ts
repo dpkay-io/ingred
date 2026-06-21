@@ -59,6 +59,11 @@ export async function privacySetCommand(
   ingredient: string,
   opts: { private?: boolean; public?: boolean },
 ): Promise<void> {
+  if (opts.private && opts.public) {
+    log.error('Cannot use --private and --public together.');
+    return;
+  }
+
   const workspaceRoot = resolve('.');
   const projectId = getProjectId(workspaceRoot);
   const privacyConfig = await loadPrivacyConfig(projectId);

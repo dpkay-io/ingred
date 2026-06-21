@@ -233,6 +233,8 @@ export async function mixCommand(opts: {
       log.success(label);
       if (r.location === 'project') {
         checkSizeWarning(r.target, compiled.project);
+      } else if (r.location === 'global') {
+        checkSizeWarning(r.target, compiled.global);
       }
     }
   }

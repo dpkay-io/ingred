@@ -1,3 +1,5 @@
+export const VERSION = '0.2.0';
+
 export interface IngredSource {
   name: string;
   type: 'git' | 'local';

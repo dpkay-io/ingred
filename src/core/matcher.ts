@@ -170,7 +170,7 @@ function contentScanFallback(
   ingredient: IngredientFile,
   stackLower: Set<string>,
 ): string | null {
-  const lines = ingredient.content.split('\n').slice(0, 50);
+  const lines = ingredient.content.split('\n').slice(0, 200);
   const contentText = lines.join(' ').toLowerCase();
 
   const contentKeywords: string[] = [];

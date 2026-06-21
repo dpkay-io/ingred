@@ -6,13 +6,14 @@ import { mixCommand } from './commands/mix.js';
 import { privacyListCommand, privacySetCommand, privacyClearCommand } from './commands/privacy.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
+import { VERSION } from './types.js';
 
 const program = new Command();
 
 program
   .name('ingred')
   .description('Compile personalized AI coding instructions into native agent config files')
-  .version('0.1.0');
+  .version(VERSION);
 
 program
   .command('add')

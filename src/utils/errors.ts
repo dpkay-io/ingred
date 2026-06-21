@@ -9,7 +9,7 @@ export class SourceNotFoundError extends IngredError {
   constructor(name: string, available: string[]) {
     const suggestion = available.length
       ? `\nAvailable sources: ${available.join(', ')}`
-      : '\nNo sources linked. Run `ingred link <repo-url-or-path>` first.';
+      : '\nNo sources linked. Run `ingred add <repo-url-or-path>` first.';
     super(`Source "${name}" not found.${suggestion}`);
     this.name = 'SourceNotFoundError';
   }
@@ -29,7 +29,7 @@ export class NoSourcesError extends IngredError {
   constructor() {
     super(
       'No ingredient sources linked.',
-      'Run `ingred link <repo-url-or-path>` to add your ingredient files.',
+      'Run `ingred add <repo-url-or-path>` to add your ingredient files.',
     );
     this.name = 'NoSourcesError';
   }
