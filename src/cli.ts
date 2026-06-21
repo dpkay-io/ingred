@@ -44,6 +44,7 @@ program
   .option('-i, --interactive', 'Interactively select which ingredients to include')
   .option('-v, --verbose', 'Show detailed matching information')
   .option('-p, --all-private', 'Mark all matched ingredients as private')
+  .option('-q, --quiet', 'Suppress all output except errors')
   .action(mixCommand);
 
 const privacy = program

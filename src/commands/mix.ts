@@ -1,23 +1,14 @@
-import { resolve } from 'node:path';
-import { loadConfig } from '../core/config.js';
-import { syncSource, collectIngredients } from '../core/sources.js';
-import { detectStack } from '../core/detector.js';
-import { matchIngredients } from '../core/matcher.js';
+import { runPipeline, resolveTargetIds } from '../core/pipeline.js';
 import { compile } from '../core/compiler.js';
 import { emit } from '../core/emitter.js';
-import { NoSourcesError, IngredError } from '../utils/errors.js';
 import { log } from '../utils/logger.js';
 import {
-  getProjectId,
-  loadPrivacyConfig,
   savePrivacyConfig,
   splitByPrivacy,
   getPrivateCompiledDir,
 } from '../core/privacy.js';
-import type { IngredientFile, ExternalMapping, TargetId } from '../types.js';
+import type { MatchResult, TargetId } from '../types.js';
 import prompts from 'prompts';
-
-const VALID_TARGETS = new Set<TargetId>(['claude', 'cursor', 'copilot', 'agents', 'gemini', 'windsurf', 'cline', 'aider']);
 
 const SIZE_WARNINGS: Partial<Record<TargetId, number>> = {
   claude: 80,
@@ -37,68 +28,34 @@ export async function mixCommand(opts: {
   interactive?: boolean;
   verbose?: boolean;
   allPrivate?: boolean;
+  quiet?: boolean;
 }): Promise<void> {
-  const config = await loadConfig();
-
-  if (config.sources.length === 0) {
-    throw new NoSourcesError();
-  }
-
-  const targetIds = resolveTargets(opts.targets, config.settings.targets);
-  const workspaceRoot = resolve('.');
-
-  // Sync sources
-  log.info('Syncing sources...');
-  for (const source of config.sources) {
-    await syncSource(source);
-  }
-
-  // Collect ingredients from all sources
-  const allIngredients: IngredientFile[] = [];
-  const allMappings: ExternalMapping[] = [];
-
-  for (const source of config.sources) {
-    const { ingredients, mappings } = await collectIngredients(source);
-    allIngredients.push(...ingredients);
-    allMappings.push(...mappings);
-  }
-
-  // Detect workspace stack
-  const stack = await detectStack(workspaceRoot);
-  const techList = [...stack.technologies].sort().join(', ');
-
-  log.info('');
-  log.item('Stack detected', techList || '(none)');
-
-  if (stack.technologies.size === 0) {
-    log.warn('Could not detect tech stack in current directory.');
-    log.hint('Only universal ingredients (no tech affiliation) will be included.');
-  }
-
-  // Match ingredients
-  const matches = matchIngredients(allIngredients, stack, allMappings);
-
-  log.item('Matched', `${matches.length} of ${allIngredients.length} ingredients`);
-
-  if (opts.verbose) {
-    log.info('');
-    for (const m of matches) {
-      const globalTag = m.ingredient.meta.global ? ' [global]' : '';
-      log.info(`  ${m.ingredient.sourceName}/${m.ingredient.relativePath}${globalTag}`);
-      log.hint(`    Tier ${m.matchTier}: ${m.matchReason}`);
-    }
-  }
+  const {
+    config,
+    stack,
+    matches,
+    targetIds,
+    projectId,
+    privacyConfig: initialPrivacyConfig,
+  } = await runPipeline({
+    targets: opts.targets,
+    verbose: opts.verbose,
+    quiet: opts.quiet,
+    skipCompile: true,
+  });
 
   if (matches.length === 0) {
-    log.info('');
-    log.warn('No ingredients matched the detected stack.');
-    log.hint('Check that your ingredient files use matching filenames (e.g., react.md)');
-    log.hint('or add frontmatter triggers. Run `ingred list --verbose` to see all ingredients.');
+    if (!opts.quiet) {
+      log.info('');
+      log.warn('No ingredients matched the detected stack.');
+      log.hint('Check that your ingredient files use matching filenames (e.g., react.md)');
+      log.hint('or add frontmatter triggers. Run `ingred list --verbose` to see all ingredients.');
+    }
     return;
   }
 
   // Interactive selection
-  let selectedMatches = matches;
+  let selectedMatches: MatchResult[] = matches;
 
   if (opts.interactive) {
     const response = await prompts({
@@ -129,12 +86,13 @@ export async function mixCommand(opts: {
       return;
     }
 
-    log.item('Selected', `${selectedMatches.length} of ${matches.length} ingredients`);
+    if (!opts.quiet) {
+      log.item('Selected', `${selectedMatches.length} of ${matches.length} ingredients`);
+    }
   }
 
   // Privacy split
-  const projectId = getProjectId(workspaceRoot);
-  let privacyConfig = await loadPrivacyConfig(projectId);
+  let privacyConfig = initialPrivacyConfig;
 
   if (opts.allPrivate) {
     privacyConfig = {
@@ -183,7 +141,7 @@ export async function mixCommand(opts: {
 
   const { publicMatches, privateMatches } = splitByPrivacy(selectedMatches, privacyConfig);
 
-  if (opts.verbose && privateMatches.length > 0) {
+  if (!opts.quiet && opts.verbose && privateMatches.length > 0) {
     log.info('');
     log.item('Private', `${privateMatches.length} ingredients`);
     for (const m of privateMatches) {
@@ -197,17 +155,19 @@ export async function mixCommand(opts: {
 
   // Dry run — show what would be written
   if (opts.dryRun) {
-    log.info('');
-    log.header('Dry run — no files written');
-    log.info('');
-    for (const targetId of targetIds) {
-      log.info(`  Would write: ${targetId}`);
-    }
-    if (privateMatches.length > 0) {
-      const compiledDir = getPrivateCompiledDir(projectId);
+    if (!opts.quiet) {
       log.info('');
-      log.info(`  Private content would be written to:`);
-      log.info(`    ${compiledDir}`);
+      log.header('Dry run — no files written');
+      log.info('');
+      for (const targetId of targetIds) {
+        log.info(`  Would write: ${targetId}`);
+      }
+      if (privateMatches.length > 0) {
+        const compiledDir = getPrivateCompiledDir(projectId);
+        log.info('');
+        log.info(`  Private content would be written to:`);
+        log.info(`    ${compiledDir}`);
+      }
     }
     return;
   }
@@ -225,57 +185,39 @@ export async function mixCommand(opts: {
 
   const results = await emit(compiled, stack, targetIds, opts.force ?? false, privateEmitOpts);
 
-  log.info('');
-  log.header('ingred mix complete');
-  log.info('');
+  if (!opts.quiet) {
+    log.info('');
+    log.header('ingred mix complete');
+    log.info('');
 
-  const written = results.filter((r) => r.status === 'written');
-  const skipped = results.filter((r) => r.status === 'skipped');
+    const written = results.filter((r) => r.status === 'written');
+    const skipped = results.filter((r) => r.status === 'skipped');
 
-  if (written.length > 0) {
-    for (const r of written) {
-      const label = r.location === 'global' ? `${r.target} (global)` : r.target;
-      log.success(label);
-      if (r.location === 'project') {
-        checkSizeWarning(r.target, compiled.project);
-      } else if (r.location === 'global') {
-        checkSizeWarning(r.target, compiled.global);
+    if (written.length > 0) {
+      for (const r of written) {
+        const label = r.location === 'global' ? `${r.target} (global)` : r.target;
+        log.success(label);
+        if (r.location === 'project') {
+          checkSizeWarning(r.target, compiled.project);
+        } else if (r.location === 'global') {
+          checkSizeWarning(r.target, compiled.global);
+        }
       }
     }
-  }
 
-  if (skipped.length > 0) {
-    log.info('');
-    for (const r of skipped) {
-      const label = r.location === 'global' ? `${r.target} (global)` : r.target;
-      log.warn(`${label} (${r.reason} — use --force to overwrite)`);
+    if (skipped.length > 0) {
+      log.info('');
+      for (const r of skipped) {
+        const label = r.location === 'global' ? `${r.target} (global)` : r.target;
+        log.warn(`${label} (${r.reason} — use --force to overwrite)`);
+      }
+    }
+
+    if (privateMatches.length > 0) {
+      log.info('');
+      log.item('Private ingredients', `written to ~/.ingred/compiled/${projectId}/`);
     }
   }
-
-  if (privateMatches.length > 0) {
-    log.info('');
-    log.item('Private ingredients', `written to ~/.ingred/compiled/${projectId}/`);
-  }
-}
-
-function resolveTargets(targetsOpt: string | undefined, defaults: TargetId[]): TargetId[] {
-  if (!targetsOpt) return defaults;
-
-  const requested = targetsOpt.split(',').map((t) => t.trim().toLowerCase());
-  const invalid = requested.filter((t) => !VALID_TARGETS.has(t as TargetId));
-  const valid = requested.filter((t) => VALID_TARGETS.has(t as TargetId)) as TargetId[];
-
-  if (invalid.length > 0) {
-    log.warn(`Unknown target(s): ${invalid.join(', ')}. Valid targets: ${[...VALID_TARGETS].join(', ')}`);
-  }
-  if (valid.length === 0) {
-    throw new IngredError(
-      `No valid targets specified.`,
-      `Valid targets: ${[...VALID_TARGETS].join(', ')}`,
-    );
-  }
-
-  return valid;
 }
 
 function checkSizeWarning(targetId: TargetId, compiled: { personaSection: string; engineeringSection: string }): void {
