@@ -7,6 +7,7 @@ import { initCommand } from './commands/init.js';
 import { privacyListCommand, privacySetCommand, privacyClearCommand } from './commands/privacy.js';
 import { excludeCommand, includeCommand, excludeListCommand } from './commands/exclude.js';
 import { diffCommand } from './commands/diff.js';
+import { checkCommand } from './commands/check.js';
 import { IngredError } from './utils/errors.js';
 import { log } from './utils/logger.js';
 import { VERSION } from './types.js';
@@ -103,6 +104,13 @@ program
   .description('Remove an ingredient from the exclusion list')
   .argument('<ingredient>', 'Ingredient key (sourceName/relativePath)')
   .action(includeCommand);
+
+program
+  .command('check')
+  .description('Validate ingredient files for correctness')
+  .argument('[source]', 'Source name to check (all if omitted)')
+  .option('--strict', 'Treat warnings as errors')
+  .action(checkCommand);
 
 program.parseAsync().catch((err: unknown) => {
   if (err instanceof IngredError) {
