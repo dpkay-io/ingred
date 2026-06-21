@@ -68,6 +68,7 @@ program
   .option('-v, --verbose', 'Show detailed matching information')
   .option('-p, --all-private', 'Mark all matched ingredients as private')
   .option('-q, --quiet', 'Suppress all output except errors')
+  .option('-w, --watch', 'Watch source files and recompile on changes')
   .action(mixCommand);
 
 program

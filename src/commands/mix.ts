@@ -1,3 +1,4 @@
+import { watch } from 'node:fs';
 import { runPipeline, resolveTargetIds } from '../core/pipeline.js';
 import { compile } from '../core/compiler.js';
 import { emit } from '../core/emitter.js';
@@ -29,7 +30,13 @@ export async function mixCommand(opts: {
   verbose?: boolean;
   allPrivate?: boolean;
   quiet?: boolean;
+  watch?: boolean;
 }): Promise<void> {
+  if (opts.watch) {
+    if (opts.dryRun) { log.error('--watch cannot be used with --dry-run.'); return; }
+    if (opts.interactive) { log.error('--watch cannot be used with --interactive.'); return; }
+    if (opts.allPrivate) { log.error('--watch cannot be used with --all-private.'); return; }
+  }
   const {
     config,
     stack,
@@ -217,6 +224,72 @@ export async function mixCommand(opts: {
       log.info('');
       log.item('Private ingredients', `written to ~/.ingred/compiled/${projectId}/`);
     }
+  }
+
+  // Watch mode
+  if (opts.watch) {
+    log.info('');
+    log.info('Watching for changes... (Ctrl+C to stop)');
+
+    const watchers: ReturnType<typeof watch>[] = [];
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const rerun = async () => {
+      try {
+        const timestamp = new Date().toLocaleTimeString();
+        const rerunResult = await runPipeline({
+          targets: opts.targets,
+          verbose: false,
+          quiet: true,
+          skipSync: true,
+        });
+        const { matches: rerunMatches, stack: rerunStack, targetIds: rerunTargetIds, projectId: rerunProjectId, privacyConfig: rerunPrivacyConfig } = rerunResult;
+        const { publicMatches: rerunPublic, privateMatches: rerunPrivate } = splitByPrivacy(rerunMatches, rerunPrivacyConfig);
+        const rerunCompiled = compile(rerunPublic);
+        const rerunPrivateCompiled = rerunPrivate.length > 0 ? compile(rerunPrivate) : null;
+        const rerunCompiledDir = getPrivateCompiledDir(rerunProjectId);
+        const rerunTildeCompiledDir = '~/.ingred/compiled/' + rerunProjectId;
+        const rerunResults = await emit(rerunCompiled, rerunStack, rerunTargetIds, opts.force ?? false, {
+          privateCompiled: rerunPrivateCompiled,
+          compiledDir: rerunCompiledDir,
+          tildeCompiledDir: rerunTildeCompiledDir,
+        });
+        const written = rerunResults.filter((r) => r.status === 'written').length;
+        log.info(`[${timestamp}] Recompiled — ${rerunMatches.length} ingredients → ${written} targets`);
+      } catch (err) {
+        log.error(`Watch recompile failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+
+    for (const source of config.sources) {
+      try {
+        const w = watch(source.cachePath, { recursive: true }, (_event, filename) => {
+          if (!filename || !filename.endsWith('.md')) return;
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(rerun, 500);
+        });
+        watchers.push(w);
+      } catch {
+        log.warn(`Recursive watch not available for ${source.name}, using per-directory watcher`);
+        try {
+          const w = watch(source.cachePath, (_event, filename) => {
+            if (!filename || !filename.endsWith('.md')) return;
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(rerun, 500);
+          });
+          watchers.push(w);
+        } catch { /* skip */ }
+      }
+    }
+
+    process.on('SIGINT', () => {
+      for (const w of watchers) w.close();
+      log.info('');
+      log.info('Watch stopped.');
+      process.exit(0);
+    });
+
+    await new Promise(() => {}); // Keep process alive
   }
 }
 
