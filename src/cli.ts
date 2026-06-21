@@ -70,6 +70,7 @@ program
   .option('-p, --all-private', 'Mark all matched ingredients as private')
   .option('-q, --quiet', 'Suppress all output except errors')
   .option('-w, --watch', 'Watch source files and recompile on changes')
+  .option('--gitignore', 'Add generated files to .gitignore')
   .action(mixCommand);
 
 program

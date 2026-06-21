@@ -1,8 +1,11 @@
 import { watch } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { runPipeline, resolveTargetIds } from '../core/pipeline.js';
 import { compile } from '../core/compiler.js';
-import { emit } from '../core/emitter.js';
+import { emit, getTargetRegistry } from '../core/emitter.js';
 import { log } from '../utils/logger.js';
+import { addToGitignore } from '../utils/gitignore.js';
 import {
   savePrivacyConfig,
   splitByPrivacy,
@@ -31,6 +34,7 @@ export async function mixCommand(opts: {
   allPrivate?: boolean;
   quiet?: boolean;
   watch?: boolean;
+  gitignore?: boolean;
 }): Promise<void> {
   if (opts.watch) {
     if (opts.dryRun) { log.error('--watch cannot be used with --dry-run.'); return; }
@@ -232,6 +236,43 @@ export async function mixCommand(opts: {
       log.info('');
       log.item('Private ingredients', `written to ~/.ingred/compiled/${projectId}/`);
     }
+  }
+
+  // Gitignore management
+  const writtenProjectResults = results.filter((r) => r.status === 'written' && r.location === 'project' && r.path);
+
+  if (opts.gitignore && writtenProjectResults.length > 0) {
+    const gitignorePath = join(stack.workspaceRoot, '.gitignore');
+    let existingContent = '';
+    try {
+      existingContent = await readFile(gitignorePath, 'utf-8');
+    } catch {
+      // .gitignore doesn't exist yet — start empty
+    }
+
+    const registry = getTargetRegistry();
+    const pathsToAdd = writtenProjectResults
+      .map((r) => {
+        const target = registry.get(r.target);
+        return target ? target.outputPath : null;
+      })
+      .filter((p): p is string => p !== null);
+
+    const updated = addToGitignore(existingContent, pathsToAdd);
+    if (updated !== existingContent) {
+      await writeFile(gitignorePath, updated, 'utf-8');
+      if (!opts.quiet) {
+        log.info('');
+        log.item('.gitignore', `updated with ${pathsToAdd.length} generated file(s)`);
+      }
+    }
+  } else if (!opts.gitignore && writtenProjectResults.length > 0 && !privacyConfig.gitignoreSuggested) {
+    if (!opts.quiet) {
+      log.info('');
+      log.hint('Tip: run with --gitignore to add generated files to .gitignore');
+    }
+    privacyConfig = { ...privacyConfig, gitignoreSuggested: true };
+    await savePrivacyConfig(projectId, privacyConfig);
   }
 
   // Watch mode
