@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
 import { loadConfig } from './config.js';
 import { syncSource, collectIngredients } from './sources.js';
 import { detectStack } from './detector.js';
@@ -8,6 +8,8 @@ import { getProjectId, loadPrivacyConfig, splitByPrivacy } from './privacy.js';
 import { registerCustomTargets } from './emitter.js';
 import { NoSourcesError, IngredError } from '../utils/errors.js';
 import { log } from '../utils/logger.js';
+import { fileExists, readText } from '../utils/fs.js';
+import { parseWorkspaceConfig } from '../parsers/workspace-config.js';
 import type {
   IngredConfig,
   IngredientFile,
@@ -17,6 +19,7 @@ import type {
   CompileResult,
   TargetId,
   ProjectConfig,
+  WorkspaceConfig,
 } from '../types.js';
 
 export interface PipelineResult {
@@ -82,8 +85,35 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
     registerCustomTargets(config.customTargets!);
   }
 
-  const targetIds = resolveTargetIds(opts.targets, config.settings.targets, customTargetIds);
   const workspaceRoot = resolve('.');
+
+  // Load optional workspace-level config from .ingred.yaml
+  const workspaceConfigPath = join(workspaceRoot, '.ingred.yaml');
+  let workspaceConfig: WorkspaceConfig = {};
+  if (await fileExists(workspaceConfigPath)) {
+    const wsContent = await readText(workspaceConfigPath);
+    workspaceConfig = parseWorkspaceConfig(wsContent);
+  }
+
+  // Apply named profile from global config if referenced in workspace config
+  if (workspaceConfig.profile && config.profiles?.[workspaceConfig.profile]) {
+    const profile = config.profiles[workspaceConfig.profile];
+    if (profile.targets && !workspaceConfig.targets) {
+      workspaceConfig.targets = profile.targets;
+    }
+    if (profile.exclude) {
+      workspaceConfig.exclude = [...(workspaceConfig.exclude ?? []), ...profile.exclude];
+    }
+  }
+
+  // Target resolution: CLI flags > workspace config > defaults
+  const effectiveTargets = opts.targets
+    ? opts.targets
+    : workspaceConfig.targets
+      ? workspaceConfig.targets.join(',')
+      : undefined;
+
+  const targetIds = resolveTargetIds(effectiveTargets, config.settings.targets, customTargetIds);
 
   // Sync sources
   if (!opts.skipSync) {
@@ -136,6 +166,15 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
   // Resolve privacy info
   const projectId = getProjectId(workspaceRoot);
   const privacyConfig = await loadPrivacyConfig(projectId);
+
+  // Merge workspace-level exclusions into privacyConfig
+  if (workspaceConfig.exclude && workspaceConfig.exclude.length > 0) {
+    for (const pattern of workspaceConfig.exclude) {
+      if (!privacyConfig.excludedIngredients.includes(pattern)) {
+        privacyConfig.excludedIngredients.push(pattern);
+      }
+    }
+  }
 
   // Filter excluded ingredients
   const excludedSet = new Set(privacyConfig.excludedIngredients);
