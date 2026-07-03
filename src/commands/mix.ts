@@ -82,7 +82,7 @@ export async function mixCommand(opts: {
             : 'universal';
         return {
           title: `${m.ingredient.sourceName}/${m.ingredient.relativePath}`,
-          description: `Tier ${m.matchTier} | ${triggerInfo} | scope: ${meta.scope} | priority: ${meta.priority}`,
+          description: `Tier ${m.matchTier}: ${m.matchReason} | ${triggerInfo} | scope: ${meta.scope} | priority: ${meta.priority}`,
           value: i,
           selected: true,
         };
@@ -242,29 +242,14 @@ export async function mixCommand(opts: {
   const writtenProjectResults = results.filter((r) => r.status === 'written' && r.location === 'project' && r.path);
 
   if (opts.gitignore && writtenProjectResults.length > 0) {
-    const gitignorePath = join(stack.workspaceRoot, '.gitignore');
-    let existingContent = '';
-    try {
-      existingContent = await readFile(gitignorePath, 'utf-8');
-    } catch {
-      // .gitignore doesn't exist yet — start empty
-    }
-
-    const registry = getTargetRegistry();
-    const pathsToAdd = writtenProjectResults
-      .map((r) => {
-        const target = registry.get(r.target);
-        return target ? target.outputPath : null;
-      })
-      .filter((p): p is string => p !== null);
-
-    const updated = addToGitignore(existingContent, pathsToAdd);
-    if (updated !== existingContent) {
-      await writeFile(gitignorePath, updated, 'utf-8');
-      if (!opts.quiet) {
-        log.info('');
-        log.item('.gitignore', `updated with ${pathsToAdd.length} generated file(s)`);
-      }
+    const changed = await updateGitignore(stack.workspaceRoot, writtenProjectResults);
+    if (changed && !opts.quiet) {
+      log.info('');
+      const registry = getTargetRegistry();
+      const count = writtenProjectResults
+        .map((r) => registry.get(r.target)?.outputPath)
+        .filter(Boolean).length;
+      log.item('.gitignore', `updated with ${count} generated file(s)`);
     }
   } else if (!opts.gitignore && writtenProjectResults.length > 0 && !privacyConfig.gitignoreSuggested) {
     if (!opts.quiet) {
@@ -303,6 +288,12 @@ export async function mixCommand(opts: {
           compiledDir: rerunCompiledDir,
           tildeCompiledDir: rerunTildeCompiledDir,
         });
+
+        if (opts.gitignore) {
+          const rerunWrittenProject = rerunResults.filter((r) => r.status === 'written' && r.location === 'project' && r.path);
+          await updateGitignore(rerunStack.workspaceRoot, rerunWrittenProject);
+        }
+
         const written = rerunResults.filter((r) => r.status === 'written').length;
         log.info(`[${timestamp}] Recompiled — ${rerunMatches.length} ingredients → ${written} targets`);
       } catch (err) {
@@ -310,24 +301,22 @@ export async function mixCommand(opts: {
       }
     };
 
+    const onFileChange = (_event: string, filename: string | null) => {
+      if (!filename || !filename.endsWith('.md')) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(rerun, 500);
+    };
+
     for (const source of config.sources) {
       try {
-        const w = watch(source.cachePath, { recursive: true }, (_event, filename) => {
-          if (!filename || !filename.endsWith('.md')) return;
-          if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(rerun, 500);
-        });
+        const w = watch(source.cachePath, { recursive: true }, onFileChange);
         watchers.push(w);
       } catch {
-        log.warn(`Recursive watch not available for ${source.name}, using per-directory watcher`);
+        log.warn(`Recursive watch not available for ${source.name}, watching top-level only`);
         try {
-          const w = watch(source.cachePath, (_event, filename) => {
-            if (!filename || !filename.endsWith('.md')) return;
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(rerun, 500);
-          });
+          const w = watch(source.cachePath, onFileChange);
           watchers.push(w);
-        } catch { /* skip */ }
+        } catch { /* skip unavailable source */ }
       }
     }
 
@@ -353,4 +342,22 @@ function checkSizeWarning(targetId: TargetId | string, compiled: { personaSectio
   if (totalLines > threshold) {
     log.warn(`  Compiled content is ${totalLines} lines (recommended: <${threshold} for ${targetId})`);
   }
+}
+
+async function updateGitignore(
+  workspaceRoot: string,
+  writtenResults: { target: TargetId | string }[],
+): Promise<boolean> {
+  if (writtenResults.length === 0) return false;
+  const gitignorePath = join(workspaceRoot, '.gitignore');
+  let existing = '';
+  try { existing = await readFile(gitignorePath, 'utf-8'); } catch { /* no file yet */ }
+  const registry = getTargetRegistry();
+  const paths = writtenResults
+    .map((r) => registry.get(r.target)?.outputPath)
+    .filter((p): p is string => p !== null && p !== undefined);
+  const updated = addToGitignore(existing, paths);
+  if (updated === existing) return false;
+  await writeFile(gitignorePath, updated, 'utf-8');
+  return true;
 }

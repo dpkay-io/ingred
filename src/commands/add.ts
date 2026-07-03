@@ -50,9 +50,22 @@ export async function addCommand(
     }
 
     if (opts.pin) {
-      await gitCheckoutPin(cachePath, opts.pin);
+      try {
+        await gitCheckoutPin(cachePath, opts.pin);
+      } catch {
+        throw new IngredError(
+          `Could not checkout pin "${opts.pin}"`,
+          'Ensure the tag or commit SHA exists in the remote repository.',
+        );
+      }
     }
   } else {
+    if (opts.pin) {
+      throw new IngredError(
+        '--pin can only be used with git sources',
+        'Local directory sources do not support version pinning.',
+      );
+    }
     cachePath = resolve(source);
     if (!(await fileExists(cachePath))) {
       throw new IngredError(

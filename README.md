@@ -1,3 +1,5 @@
+[![Claude Code](https://img.shields.io/badge/Claude_Code-cc785c)](https://github.com/dpkay-io/ingred) [![Cursor](https://img.shields.io/badge/Cursor-000000)](https://github.com/dpkay-io/ingred) [![Platform](https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-blue)](https://github.com/dpkay-io/ingred) [![License](https://img.shields.io/npm/l/ingred)](https://github.com/dpkay-io/ingred) [![Productivity](https://img.shields.io/badge/productivity-blue)](https://github.com/dpkay-io/ingred) [![AI Tools](https://img.shields.io/badge/ai--tools-blueviolet)](https://github.com/dpkay-io/ingred) [![npm downloads](https://img.shields.io/npm/dt/ingred)](https://github.com/dpkay-io/ingred) [![npm version](https://img.shields.io/npm/v/ingred)](https://github.com/dpkay-io/ingred) [![Node version](https://img.shields.io/node/v/ingred)](https://github.com/dpkay-io/ingred)
+
 # ingred
 
 Compile personalized AI coding instructions into native agent config files.
@@ -62,7 +64,10 @@ Add a git repo or local directory as an ingredient source.
 ingred add https://github.com/you/ingredients.git
 ingred add ./local-ingredients
 ingred add https://github.com/you/ingredients.git --branch main
+ingred add https://github.com/you/ingredients.git --pin v1.2.0
 ```
+
+Use `--pin <ref>` to lock a git source to a specific tag or commit SHA. Pinned sources skip `git pull` on sync and always checkout the pinned ref instead.
 
 ### `ingred remove <name>`
 
@@ -94,9 +99,15 @@ ingred mix --force                # overwrite even non-ingred files
 ingred mix --interactive          # select which ingredients to include
 ingred mix --all-private          # mark all matched ingredients as private
 ingred mix --verbose              # detailed output
+ingred mix --watch                # watch source files and recompile on changes
+ingred mix --gitignore            # add generated files to .gitignore
 ```
 
 With `--interactive` (`-i`), you get a multi-select prompt after matching where you can confirm or skip each ingredient before compilation.
+
+With `--watch` (`-w`), the process stays alive and recompiles automatically whenever source `.md` files change. Useful during ingredient development.
+
+With `--gitignore`, generated target files are added to a `# ingred (generated)` section in your workspace `.gitignore`. A one-time tip suggests this flag on first run.
 
 ### `ingred privacy`
 

@@ -44,10 +44,13 @@ export async function gitCurrentBranch(repoPath: string): Promise<string> {
 }
 
 export async function gitCheckoutPin(repoPath: string, pin: string): Promise<void> {
-  await execFileAsync('git', ['-C', repoPath, 'fetch', '--tags'], { timeout: 30_000 });
+  await execFileAsync('git', ['-C', repoPath, 'fetch', '--tags', '--force', '--depth=1', 'origin'], { timeout: 30_000 });
   try {
     await execFileAsync('git', ['-C', repoPath, 'checkout', `tags/${pin}`], { timeout: 10_000 });
   } catch {
+    try {
+      await execFileAsync('git', ['-C', repoPath, 'fetch', '--depth=1', 'origin', pin], { timeout: 30_000 });
+    } catch { /* SHA may already be available locally */ }
     await execFileAsync('git', ['-C', repoPath, 'checkout', pin], { timeout: 10_000 });
   }
 }
