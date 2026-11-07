@@ -5,13 +5,14 @@ import { runPipeline, resolveTargetIds } from '../core/pipeline.js';
 import { compile } from '../core/compiler.js';
 import { emit, getTargetRegistry } from '../core/emitter.js';
 import { log } from '../utils/logger.js';
+import { IngredError } from '../utils/errors.js';
 import { addToGitignore } from '../utils/gitignore.js';
 import {
   savePrivacyConfig,
   splitByPrivacy,
   getPrivateCompiledDir,
 } from '../core/privacy.js';
-import type { MatchResult, TargetId } from '../types.js';
+import type { EmitOptions, MatchResult, TargetId } from '../types.js';
 import prompts from 'prompts';
 
 const SIZE_WARNINGS: Partial<Record<TargetId, number>> = {
@@ -35,7 +36,14 @@ export async function mixCommand(opts: {
   quiet?: boolean;
   watch?: boolean;
   gitignore?: boolean;
+  globalOnly?: boolean;
+  importGlobal?: boolean;
 }): Promise<void> {
+  const emitOpts: EmitOptions = {
+    globalOnly: opts.globalOnly ?? false,
+    importGlobal: opts.importGlobal ?? false,
+  };
+
   if (opts.watch) {
     if (opts.dryRun) { log.error('--watch cannot be used with --dry-run.'); return; }
     if (opts.interactive) { log.error('--watch cannot be used with --interactive.'); return; }
@@ -45,7 +53,7 @@ export async function mixCommand(opts: {
     config,
     stack,
     matches,
-    targetIds,
+    targetIds: pipelineTargetIds,
     projectId,
     privacyConfig: initialPrivacyConfig,
   } = await runPipeline({
@@ -54,6 +62,10 @@ export async function mixCommand(opts: {
     quiet: opts.quiet,
     skipCompile: true,
   });
+
+  const targetIds = emitOpts.globalOnly
+    ? selectGlobalTargets(pipelineTargetIds, Boolean(opts.targets), Boolean(opts.quiet))
+    : pipelineTargetIds;
 
   if (matches.length === 0) {
     if (!opts.quiet) {
@@ -202,20 +214,20 @@ export async function mixCommand(opts: {
     };
   })();
 
-  const results = await emit(compiled, stack, targetIds, opts.force ?? false, privateEmitOpts);
+  const results = await emit(compiled, stack, targetIds, opts.force ?? false, privateEmitOpts, emitOpts);
 
   if (!opts.quiet) {
     log.info('');
     log.header('ingred mix complete');
     log.info('');
 
-    const written = results.filter((r) => r.status === 'written');
+    const written = results.filter((r) => r.status === 'written' || r.status === 'imported');
     const skipped = results.filter((r) => r.status === 'skipped');
 
     if (written.length > 0) {
       for (const r of written) {
         const label = r.location === 'global' ? `${r.target} (global)` : r.target;
-        log.success(label);
+        log.success(r.status === 'imported' ? `${label} — linked into ${r.path}` : label);
         if (r.location === 'project') {
           checkSizeWarning(r.target, compiled.project);
         } else if (r.location === 'global') {
@@ -277,7 +289,10 @@ export async function mixCommand(opts: {
           quiet: true,
           skipSync: true,
         });
-        const { matches: rerunMatches, stack: rerunStack, targetIds: rerunTargetIds, projectId: rerunProjectId, privacyConfig: rerunPrivacyConfig } = rerunResult;
+        const { matches: rerunMatches, stack: rerunStack, targetIds: rerunPipelineTargetIds, projectId: rerunProjectId, privacyConfig: rerunPrivacyConfig } = rerunResult;
+        const rerunTargetIds = emitOpts.globalOnly
+          ? selectGlobalTargets(rerunPipelineTargetIds, Boolean(opts.targets), true)
+          : rerunPipelineTargetIds;
         const { publicMatches: rerunPublic, privateMatches: rerunPrivate } = splitByPrivacy(rerunMatches, rerunPrivacyConfig);
         const rerunCompiled = compile(rerunPublic);
         const rerunPrivateCompiled = rerunPrivate.length > 0 ? compile(rerunPrivate) : null;
@@ -287,14 +302,14 @@ export async function mixCommand(opts: {
           privateCompiled: rerunPrivateCompiled,
           compiledDir: rerunCompiledDir,
           tildeCompiledDir: rerunTildeCompiledDir,
-        });
+        }, emitOpts);
 
         if (opts.gitignore) {
           const rerunWrittenProject = rerunResults.filter((r) => r.status === 'written' && r.location === 'project' && r.path);
           await updateGitignore(rerunStack.workspaceRoot, rerunWrittenProject);
         }
 
-        const written = rerunResults.filter((r) => r.status === 'written').length;
+        const written = rerunResults.filter((r) => r.status === 'written' || r.status === 'imported').length;
         log.info(`[${timestamp}] Recompiled — ${rerunMatches.length} ingredients → ${written} targets`);
       } catch (err) {
         log.error(`Watch recompile failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -329,6 +344,32 @@ export async function mixCommand(opts: {
 
     await new Promise(() => {}); // Keep process alive
   }
+}
+
+/** Keep only targets that have a global config file; error if none do. */
+function selectGlobalTargets(
+  targetIds: TargetId[],
+  explicitTargets: boolean,
+  quiet: boolean,
+): TargetId[] {
+  const registry = getTargetRegistry();
+  const supported = targetIds.filter((id) => registry.get(id)?.globalOutputPath);
+  const unsupported = targetIds.filter((id) => !supported.includes(id));
+
+  if (supported.length === 0) {
+    const withGlobal = [...registry.values()]
+      .filter((t) => t.globalOutputPath)
+      .map((t) => t.id);
+    throw new IngredError(
+      '--global-only: none of the selected targets have a global config file.',
+      `Targets with a global file: ${withGlobal.join(', ')}`,
+    );
+  }
+
+  if (explicitTargets && !quiet && unsupported.length > 0) {
+    log.warn(`--global-only: no global file for ${unsupported.join(', ')}, skipping.`);
+  }
+  return supported;
 }
 
 function checkSizeWarning(targetId: TargetId | string, compiled: { personaSection: string; engineeringSection: string }): void {

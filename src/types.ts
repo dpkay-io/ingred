@@ -1,4 +1,4 @@
-export const VERSION = '1.0.0';
+export const VERSION = '1.2.0';
 
 export interface IngredSource {
   name: string;
@@ -73,9 +73,17 @@ export interface Target {
 export interface EmitResult {
   target: TargetId | string;
   location: 'project' | 'global';
-  status: 'written' | 'skipped';
+  /** 'imported' = compiled content lives in ~/.ingred/compiled/ and `path` now links to it. */
+  status: 'written' | 'imported' | 'skipped';
   path?: string;
   reason?: string;
+}
+
+export interface EmitOptions {
+  /** Write only global files (e.g. ~/.claude/CLAUDE.md); never touch the current directory. */
+  globalOnly?: boolean;
+  /** For a hand-written global file: link compiled content in via an include line instead of skipping. */
+  importGlobal?: boolean;
 }
 
 export interface ExternalMapping {

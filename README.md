@@ -30,6 +30,8 @@ Privacy is per-project. Run `ingred privacy list` to see what's public and what'
 | Agents | `AGENTS.md` |
 | Gemini | `GEMINI.md` |
 
+Claude and Gemini also support [global rules](#global-rules) (`~/.claude/CLAUDE.md`, `~/.gemini/GEMINI.md`).
+
 ## Install
 
 ```
@@ -101,6 +103,8 @@ ingred mix --all-private          # mark all matched ingredients as private
 ingred mix --verbose              # detailed output
 ingred mix --watch                # watch source files and recompile on changes
 ingred mix --gitignore            # add generated files to .gitignore
+ingred mix --global-only          # write only global files, nothing in the current directory
+ingred mix --import-global        # link into hand-written global files instead of skipping them
 ```
 
 With `--interactive` (`-i`), you get a multi-select prompt after matching where you can confirm or skip each ingredient before compilation.
@@ -108,6 +112,57 @@ With `--interactive` (`-i`), you get a multi-select prompt after matching where 
 With `--watch` (`-w`), the process stays alive and recompiles automatically whenever source `.md` files change. Useful during ingredient development.
 
 With `--gitignore`, generated target files are added to a `# ingred (generated)` section in your workspace `.gitignore`. A one-time tip suggests this flag on first run.
+
+With `--global-only` (`-g`), only global files are written (see [Global rules](#global-rules)); nothing is written into the current directory. Targets without a global file are skipped.
+
+With `--import-global`, a hand-written global file is kept as-is and ingred adds one include line to it (see [Global rules](#global-rules)).
+
+## Global rules
+
+Rules that should apply to **every** project (not just the current workspace) go in the agent's global config file. Mark an ingredient as global in its frontmatter:
+
+```markdown
+---
+global: true
+always: true
+---
+
+Your instructions here...
+```
+
+`always: true` makes sure it is included regardless of the detected stack. Without it, a global ingredient still has to match the workspace like any other.
+
+| Target | Global file |
+|--------|-------------|
+| Claude | `~/.claude/CLAUDE.md` |
+| Gemini / Antigravity (`agy`) | `~/.gemini/GEMINI.md` |
+
+Targets not listed here have no global file: for them, global ingredients are merged into the project file as before.
+
+Global ingredients are written to the global file only, and are left out of the project file for targets that have one. To write just the global files, from any directory:
+
+```bash
+ingred mix --global-only
+ingred mix --global-only --targets claude,gemini
+```
+
+### Keeping a hand-written global file
+
+ingred never overwrites a file it did not generate (no sentinel comment) unless you pass `--force`. If your global file is hand-written, or managed by another tool, use `--import-global`:
+
+```bash
+ingred mix --global-only --import-global
+```
+
+The compiled rules are written to `~/.ingred/compiled/_global/private-<target>.md` and a single block is added to the end of your file:
+
+```markdown
+<!-- ingred:global:start -->
+@~/.ingred/compiled/_global/private-claude.md
+<!-- ingred:global:end -->
+```
+
+Re-running updates the linked file and leaves the rest of your file untouched. Only the text between the two markers is ever modified. If a start marker has no matching end marker, ingred skips the file rather than guess.
 
 ### `ingred privacy`
 

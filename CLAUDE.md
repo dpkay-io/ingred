@@ -43,7 +43,9 @@ Config → Sync sources → Walk .md files → Parse frontmatter → Detect work
 - `src/parsers/manifest.ts` — 10 parsers for package.json, Cargo.toml, go.mod, pyproject.toml, requirements.txt, Gemfile, pubspec.yaml, composer.json, pom.xml, build.gradle
 - `src/parsers/ingred-yaml.ts` — external mapping file parser
 
-**Targets:** `src/targets/{claude,cursor,copilot,agents,gemini}.ts` — each implements `format(compiled, stack)` returning the formatted string for that agent's config file.
+**Targets:** `src/targets/{claude,cursor,copilot,agents,gemini}.ts` — each implements `format(compiled, stack)` returning the formatted string for that agent's config file. Targets with `globalOutputPath` (claude, gemini) send `global: true` ingredients to that file instead of the project file.
+
+**Global mixing:** `mix --global-only` skips all project writes. `mix --import-global` handles a hand-written (sentinel-less) global file by writing compiled rules to `~/.ingred/compiled/_global/private-<target>.md` and upserting one marker block (`src/utils/managed-block.ts`) containing `target.privateReference(...)`. Tests for global paths set `HOME` to a temp dir before importing targets (paths resolve at module load).
 
 ## Key conventions
 

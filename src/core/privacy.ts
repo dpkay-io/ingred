@@ -21,6 +21,16 @@ export function getPrivateCompiledDir(projectId: string, baseDir?: string): stri
   return join(baseDir ?? INGRED_DIR, 'compiled', projectId);
 }
 
+// Directory name under ~/.ingred/compiled/ for global (non-project) output.
+// Prefixed with "_" so it can never collide with a hashed project id.
+const GLOBAL_COMPILED_ID = '_global';
+
+export const TILDE_GLOBAL_COMPILED_DIR = `~/.ingred/compiled/${GLOBAL_COMPILED_ID}`;
+
+export function getGlobalCompiledDir(baseDir?: string): string {
+  return getPrivateCompiledDir(GLOBAL_COMPILED_ID, baseDir);
+}
+
 function ingredientKey(m: MatchResult): string {
   return `${m.ingredient.sourceName}/${m.ingredient.relativePath}`;
 }

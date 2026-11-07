@@ -71,6 +71,8 @@ program
   .option('-q, --quiet', 'Suppress all output except errors')
   .option('-w, --watch', 'Watch source files and recompile on changes')
   .option('--gitignore', 'Add generated files to .gitignore')
+  .option('-g, --global-only', 'Write only global files (e.g. ~/.claude/CLAUDE.md); never write into the current directory')
+  .option('--import-global', 'If a global file is hand-written, link compiled rules into it via an include line instead of skipping it')
   .action(mixCommand);
 
 program
